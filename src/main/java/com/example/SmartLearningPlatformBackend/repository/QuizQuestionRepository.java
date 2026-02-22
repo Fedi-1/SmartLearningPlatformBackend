@@ -13,4 +13,6 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     List<QuizQuestion> findByQuizIdOrderByQuestionNumberAsc(Long quizId);
 
     List<QuizQuestion> findByQuizIdAndQuestionType(Long quizId, QuestionType questionType);
+
+    List<QuizQuestion> findByQuizAttemptId(Long quizAttemptId);
 }

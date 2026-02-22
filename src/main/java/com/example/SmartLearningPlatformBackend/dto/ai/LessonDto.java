@@ -20,8 +20,8 @@ public class LessonDto {
     @JsonProperty("content")
     private String content;
 
-    @JsonProperty("quizzes")
-    private List<QuizQuestionDto> quizzes;
+    @JsonProperty("estimatedReadTime")
+    private Integer estimatedReadTime;
 
     @JsonProperty("flashcards")
     private List<FlashcardDto> flashcards;

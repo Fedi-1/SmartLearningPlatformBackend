@@ -14,6 +14,7 @@ public class LessonResponse {
     private String title;
     private String summary;
     private String content;
+    private Integer estimatedReadTime;
     @JsonProperty("isLocked")
     private boolean isLocked;
     private Long quizId;
