@@ -24,6 +24,7 @@ public class QuizService {
 
         private final QuizRepository quizRepository;
         private final QuizAttemptRepository quizAttemptRepository;
+        private final QuizAttemptQuestionRepository quizAttemptQuestionRepository;
         private final QuizAnswerRepository quizAnswerRepository;
         private final QuizQuestionRepository quizQuestionRepository;
         private final LessonRepository lessonRepository;
@@ -65,7 +66,7 @@ public class QuizService {
                 // ── Call FastAPI to generate 5 fresh questions on demand ──────────
                 List<Map<String, Object>> rawQuestions = aiServiceClient.generateQuizQuestions(lesson.getContent());
 
-                // ── Persist generated questions linked to this attempt ────────────
+                // ── Persist generated questions and link them to this attempt ─────
                 List<QuizQuestion> savedQuestions = new ArrayList<>();
                 for (int i = 0; i < rawQuestions.size(); i++) {
                         Map<String, Object> q = rawQuestions.get(i);
@@ -78,7 +79,6 @@ public class QuizService {
 
                         QuizQuestion question = QuizQuestion.builder()
                                         .quizId(quizId)
-                                        .quizAttemptId(attemptId)
                                         .questionNumber(i + 1)
                                         .questionText(getString(q, "question"))
                                         .questionType(questionType)
@@ -92,7 +92,14 @@ public class QuizService {
                                         .pointsWorth(pointsWorth)
                                         .build();
 
-                        savedQuestions.add(quizQuestionRepository.save(question));
+                        QuizQuestion saved = quizQuestionRepository.save(question);
+                        savedQuestions.add(saved);
+
+                        // Link question to this attempt via the join table
+                        quizAttemptQuestionRepository.save(QuizAttemptQuestion.builder()
+                                        .quizAttemptId(attemptId)
+                                        .quizQuestionId(saved.getId())
+                                        .build());
                 }
 
                 // Build question DTOs for response
@@ -123,8 +130,12 @@ public class QuizService {
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Quiz not found."));
 
-                // Load the 5 questions generated for this specific attempt
-                List<QuizQuestion> questions = quizQuestionRepository.findByQuizAttemptId(attemptId);
+                // Load the 5 questions generated for this specific attempt via the join table
+                List<Long> questionIds = quizAttemptQuestionRepository.findByQuizAttemptId(attemptId)
+                                .stream()
+                                .map(QuizAttemptQuestion::getQuizQuestionId)
+                                .collect(Collectors.toList());
+                List<QuizQuestion> questions = quizQuestionRepository.findAllById(questionIds);
 
                 // Save answers + accumulate weighted points
                 int totalPoints = questions.stream().mapToInt(QuizQuestion::getPointsWorth).sum();

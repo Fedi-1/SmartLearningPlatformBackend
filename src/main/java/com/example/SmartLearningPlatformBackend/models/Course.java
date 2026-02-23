@@ -31,6 +31,9 @@ public class Course {
     @Column(name = "title", nullable = false)
     private String title;
 
+    @Column(name = "category")
+    private String category;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

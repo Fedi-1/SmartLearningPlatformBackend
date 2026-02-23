@@ -10,6 +10,7 @@ import java.util.List;
 public class CourseDetailResponse {
     private Long id;
     private String title;
+    private String category;
     private String description;
     private Integer totalLessons;
     private List<LessonResponse> lessons;

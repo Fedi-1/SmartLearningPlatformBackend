@@ -58,9 +58,6 @@ public class QuizQuestion {
     @Column(name = "points_worth", nullable = false)
     private Integer pointsWorth;
 
-    @Column(name = "quiz_attempt_id")
-    private Long quizAttemptId;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quiz_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Quiz quiz;

@@ -32,6 +32,7 @@ public class CourseService {
                                 .documentId(document.getId())
                                 .studentId(student.getId())
                                 .title(aiResponse.getCourseTitle())
+                                .category(aiResponse.getCategory())
                                 .description("Auto-generated course from document: " + document.getFileName())
                                 .build();
                 course = courseRepository.save(course);
@@ -141,6 +142,7 @@ public class CourseService {
                 return CourseDetailResponse.builder()
                                 .id(course.getId())
                                 .title(course.getTitle())
+                                .category(course.getCategory())
                                 .description(course.getDescription())
                                 .totalLessons(lessonResponses.size())
                                 .lessons(lessonResponses)
