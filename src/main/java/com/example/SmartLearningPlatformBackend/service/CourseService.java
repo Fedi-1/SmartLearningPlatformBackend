@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,6 +24,7 @@ public class CourseService {
         private final LessonRepository lessonRepository;
         private final QuizRepository quizRepository;
         private final FlashcardRepository flashcardRepository;
+        private final FlashcardReviewRepository flashcardReviewRepository;
         private final LessonProgressRepository lessonProgressRepository;
 
         @Transactional
@@ -68,7 +70,16 @@ public class CourseService {
                                                         .definition(fcDto.getDefinition())
                                                         .difficulty(DifficultyLevel.MEDIUM)
                                                         .build();
-                                        flashcardRepository.save(flashcard);
+                                        Flashcard savedFlashcard = flashcardRepository.save(flashcard);
+                                        flashcardReviewRepository.save(FlashcardReview.builder()
+                                                        .studentId(student.getId())
+                                                        .flashcardId(savedFlashcard.getId())
+                                                        .easeFactor(2.5f)
+                                                        .interval(0)
+                                                        .repetitionCount(0)
+                                                        .consecutiveCorrectReviews(0)
+                                                        .nextReviewDate(LocalDate.now())
+                                                        .build());
                                 }
                         }
 
@@ -116,7 +127,7 @@ public class CourseService {
                         List<QuizQuestionResponse> questions = List.of();
 
                         List<FlashcardResponse> flashcards = flashcardRepository
-                                        .findByLessonIdAndIsDeletedFalse(lesson.getId())
+                                        .findByLessonId(lesson.getId())
                                         .stream()
                                         .map(fc -> FlashcardResponse.builder()
                                                         .id(fc.getId())

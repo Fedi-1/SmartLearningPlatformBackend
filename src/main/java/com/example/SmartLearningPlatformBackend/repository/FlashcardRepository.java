@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
 
-    List<Flashcard> findByLessonIdAndIsDeletedFalse(Long lessonId);
+    List<Flashcard> findByLessonId(Long lessonId);
 }
