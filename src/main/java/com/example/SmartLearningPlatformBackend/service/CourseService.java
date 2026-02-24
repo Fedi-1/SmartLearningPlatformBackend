@@ -104,7 +104,7 @@ public class CourseService {
 
         @Transactional(readOnly = true)
         public CourseDetailResponse getCourseById(Long courseId, Long studentId) {
-                Course course = courseRepository.findById(courseId)
+                Course course = courseRepository.findByIdAndIsDeletedFalse(courseId)
                                 .orElseThrow(() -> new IllegalArgumentException("Course not found."));
                 if (!course.getStudentId().equals(studentId)) {
                         throw new IllegalArgumentException("Access denied.");
@@ -162,7 +162,7 @@ public class CourseService {
 
         @Transactional(readOnly = true)
         public List<LessonProgressItem> getCourseProgress(Long courseId, Long studentId) {
-                Course course = courseRepository.findById(courseId)
+                Course course = courseRepository.findByIdAndIsDeletedFalse(courseId)
                                 .orElseThrow(() -> new IllegalArgumentException("Course not found."));
                 if (!course.getStudentId().equals(studentId)) {
                         throw new IllegalArgumentException("Access denied.");

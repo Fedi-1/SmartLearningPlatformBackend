@@ -15,6 +15,7 @@ import com.example.SmartLearningPlatformBackend.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -137,6 +138,7 @@ public class DocumentService {
 
     // ─── Soft delete ────────────────────────────────────────────────────────────
 
+    @Transactional
     public void softDeleteDocument(Long documentId, Long studentId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found."));
@@ -145,6 +147,12 @@ public class DocumentService {
         }
         document.setIsDeleted(true);
         documentRepository.save(document);
+
+        // Propagate deletion to the course generated from this document
+        courseRepository.findByDocumentId(documentId).ifPresent(course -> {
+            course.setIsDeleted(true);
+            courseRepository.save(course);
+        });
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
