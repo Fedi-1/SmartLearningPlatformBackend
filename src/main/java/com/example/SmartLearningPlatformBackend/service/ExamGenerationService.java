@@ -7,11 +7,11 @@ import com.example.SmartLearningPlatformBackend.enums.QuestionType;
 import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -31,11 +31,7 @@ public class ExamGenerationService {
     private final LessonRepository lessonRepository;
     private final CourseRepository courseRepository;
     private final AiServiceClient aiServiceClient;
-
-    // Self-injection to allow @Transactional on internal method calls via proxy
-    @Lazy
-    @Autowired
-    private ExamGenerationService self;
+    private final PlatformTransactionManager transactionManager;
 
     // ─── Generate exam for course ─────────────────────────────────────────────
 
@@ -74,56 +70,49 @@ public class ExamGenerationService {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI service returned no questions.");
         }
 
-        // Now persist everything in a dedicated transaction
-        return self.persistExamAndQuestions(courseId, rawQuestions);
-    }
+        // Persist everything in a dedicated programmatic transaction (no self-call
+        // proxy needed)
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        return tx.execute(status -> {
+            // Guard: another request might have saved an exam while AI was running
+            Optional<Exam> race = examRepository.findByCourseId(courseId);
+            if (race.isPresent()) {
+                return toExamResponse(race.get());
+            }
 
-    @Transactional
-    protected ExamResponse persistExamAndQuestions(Long courseId, List<Map<String, Object>> rawQuestions) {
-
-        // Guard: another request might have saved an exam while the AI was running
-        Optional<Exam> existing = examRepository.findByCourseId(courseId);
-        if (existing.isPresent()) {
-            return toExamResponse(existing.get());
-        }
-
-        // Create and save the Exam entity
-        Exam exam = Exam.builder()
-                .courseId(courseId)
-                .title("Examen Final")
-                .passingScore(70)
-                .maxAttempts(3)
-                .totalPoints(45)
-                .sectionEasyCount(10)
-                .sectionMediumCount(10)
-                .sectionHardCount(5)
-                .isDeleted(false)
-                .build();
-        exam = examRepository.save(exam);
-        examRepository.flush(); // ensure the exam ID is available before saving questions
-
-        // Save all questions
-        for (int i = 0; i < rawQuestions.size(); i++) {
-            Map<String, Object> q = rawQuestions.get(i);
-            ExamQuestion eq = ExamQuestion.builder()
-                    .examId(exam.getId())
-                    .questionNumber(i + 1)
-                    .questionText(getString(q, "questionText"))
-                    .questionType(parseQuestionType(getString(q, "questionType")))
-                    .difficulty(parseDifficulty(getString(q, "difficulty")))
-                    .sectionNumber(getInt(q, "sectionNumber", 1))
-                    .pointsWorth(getInt(q, "pointsWorth", 1))
-                    .correctAnswer(getString(q, "correctAnswer"))
-                    .explanation(getString(q, "explanation"))
-                    .option1(getStringOrNull(q, "option1"))
-                    .option2(getStringOrNull(q, "option2"))
-                    .option3(getStringOrNull(q, "option3"))
-                    .option4(getStringOrNull(q, "option4"))
+            Exam exam = Exam.builder()
+                    .courseId(courseId)
+                    .title("Examen Final")
+                    .passingScore(70)
+                    .maxAttempts(3)
+                    .totalPoints(45)
+                    .sectionEasyCount(10)
+                    .sectionMediumCount(10)
+                    .sectionHardCount(5)
+                    .isDeleted(false)
                     .build();
-            examQuestionRepository.save(eq);
-        }
+            Exam savedExam = examRepository.saveAndFlush(exam);
 
-        return toExamResponse(exam);
+            for (int i = 0; i < rawQuestions.size(); i++) {
+                Map<String, Object> q = rawQuestions.get(i);
+                examQuestionRepository.save(ExamQuestion.builder()
+                        .examId(savedExam.getId())
+                        .questionNumber(i + 1)
+                        .questionText(getString(q, "questionText"))
+                        .questionType(parseQuestionType(getString(q, "questionType")))
+                        .difficulty(parseDifficulty(getString(q, "difficulty")))
+                        .sectionNumber(getInt(q, "sectionNumber", 1))
+                        .pointsWorth(getInt(q, "pointsWorth", 1))
+                        .correctAnswer(getString(q, "correctAnswer"))
+                        .explanation(getString(q, "explanation"))
+                        .option1(getStringOrNull(q, "option1"))
+                        .option2(getStringOrNull(q, "option2"))
+                        .option3(getStringOrNull(q, "option3"))
+                        .option4(getStringOrNull(q, "option4"))
+                        .build());
+            }
+            return toExamResponse(savedExam);
+        });
     }
 
     // ─── Get exam for course ──────────────────────────────────────────────────
