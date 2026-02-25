@@ -38,6 +38,9 @@ public class Lesson {
     @Column(name = "estimated_read_time")
     private Integer estimatedReadTime;
 
+    @Column(name = "recap_video_path")
+    private String recapVideoPath;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

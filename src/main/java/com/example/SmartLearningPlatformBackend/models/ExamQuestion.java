@@ -36,13 +36,13 @@ public class ExamQuestion {
     @Column(name = "correct_answer", nullable = false)
     private String correctAnswer;
 
-    @Column(name = "option1", nullable = false)
+    @Column(name = "option1")
     private String option1;
 
-    @Column(name = "option2", nullable = false)
+    @Column(name = "option2")
     private String option2;
 
-    @Column(name = "option3", nullable = false)
+    @Column(name = "option3")
     private String option3;
 
     @Column(name = "option4")
@@ -57,6 +57,9 @@ public class ExamQuestion {
 
     @Column(name = "points_worth", nullable = false)
     private Integer pointsWorth;
+
+    @Column(name = "section_number", nullable = false)
+    private Integer sectionNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", referencedColumnName = "id", insertable = false, updatable = false)

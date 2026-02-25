@@ -51,6 +51,7 @@ public class CourseService {
                                                         : lessonDto.getSummary())
                                         .summary(lessonDto.getSummary())
                                         .estimatedReadTime(lessonDto.getEstimatedReadTime())
+                                        .recapVideoPath(lessonDto.getRecapVideoPath())
                                         .build();
                         lesson = lessonRepository.save(lesson);
 
@@ -143,6 +144,7 @@ public class CourseService {
                                         .summary(lesson.getSummary())
                                         .content(lesson.getContent())
                                         .estimatedReadTime(lesson.getEstimatedReadTime())
+                                        .recapVideoPath(lesson.getRecapVideoPath())
                                         .isLocked(lockedMap.getOrDefault(lesson.getId(), true))
                                         .quizId(quiz != null ? quiz.getId() : null)
                                         .quiz(questions)

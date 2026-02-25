@@ -100,4 +100,36 @@ public class AiServiceClient {
             throw new AiServiceException("AI quiz generation error: " + e.getMessage());
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> generateExamQuestions(List<String> lessonContents, String courseTitle) {
+        try {
+            String url = aiServiceBaseUrl + "/api/generate-exam";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("lessonContents", lessonContents);
+            body.put("courseTitle", courseTitle);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<List<?>> response = restTemplate.postForEntity(url, requestEntity,
+                    (Class<List<?>>) (Class<?>) List.class);
+
+            if (response.getBody() == null) {
+                throw new AiServiceException("AI service returned empty exam questions.");
+            }
+
+            return (List<Map<String, Object>>) response.getBody();
+
+        } catch (ResourceAccessException e) {
+            throw new AiServiceException("AI service is unreachable. Please ensure it is running on port 8000.");
+        } catch (AiServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiServiceException("AI exam generation error: " + e.getMessage());
+        }
+    }
 }

@@ -57,7 +57,7 @@ public class ExamAttempt {
     @JoinColumn(name = "exam_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Exam exam;
 
-    @OneToMany(mappedBy = "examAttempt", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "examAttempt", cascade = CascadeType.ALL)
     @Builder.Default
     private List<ExamAnswer> answers = new ArrayList<>();
 

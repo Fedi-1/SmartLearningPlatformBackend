@@ -12,4 +12,8 @@ public interface ExamAttemptRepository extends JpaRepository<ExamAttempt, Long> 
     boolean existsByStudentIdAndExamIdAndIsPassed(Long studentId, Long examId, Boolean isPassed);
 
     List<ExamAttempt> findByStudentIdAndExamIdIn(Long studentId, List<Long> examIds);
+
+    List<ExamAttempt> findByStudentIdAndExamId(Long studentId, Long examId);
+
+    int countByStudentIdAndExamId(Long studentId, Long examId);
 }

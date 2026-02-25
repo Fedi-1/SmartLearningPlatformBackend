@@ -34,6 +34,18 @@ public class Exam {
     @Column(name = "max_attempts", nullable = false)
     private Integer maxAttempts;
 
+    @Column(name = "total_points", nullable = false)
+    private Integer totalPoints;
+
+    @Column(name = "section_easy_count", nullable = false)
+    private Integer sectionEasyCount;
+
+    @Column(name = "section_medium_count", nullable = false)
+    private Integer sectionMediumCount;
+
+    @Column(name = "section_hard_count", nullable = false)
+    private Integer sectionHardCount;
+
     @Column(name = "time_limit_minutes")
     private Integer timeLimitMinutes;
 
@@ -48,7 +60,7 @@ public class Exam {
     @JoinColumn(name = "course_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Course course;
 
-    @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL)
     @Builder.Default
     private List<ExamQuestion> questions = new ArrayList<>();
 

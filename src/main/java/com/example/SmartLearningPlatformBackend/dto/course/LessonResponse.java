@@ -15,6 +15,7 @@ public class LessonResponse {
     private String summary;
     private String content;
     private Integer estimatedReadTime;
+    private String recapVideoPath;
     @JsonProperty("isLocked")
     private boolean isLocked;
     private Long quizId;
