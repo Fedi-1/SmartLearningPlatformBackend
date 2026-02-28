@@ -23,6 +23,7 @@ public class QuizAttemptResponse {
     private String finishReason;
     private Integer attemptsUsed;
     private Integer maxAttempts;
+    private Integer timeLimitMinutes;
 
     /**
      * The 5 randomly selected questions for this attempt (only present on start,

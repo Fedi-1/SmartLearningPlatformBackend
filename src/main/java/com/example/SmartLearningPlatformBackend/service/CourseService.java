@@ -35,7 +35,11 @@ public class CourseService {
                                 .studentId(student.getId())
                                 .title(aiResponse.getCourseTitle())
                                 .category(aiResponse.getCategory())
-                                .description("Auto-generated course from document: " + document.getFileName())
+                                .description(
+                                                (aiResponse.getCourseDescription() != null
+                                                                && !aiResponse.getCourseDescription().isBlank())
+                                                                                ? aiResponse.getCourseDescription()
+                                                                                : "Cours généré automatiquement à partir du document uploadé.")
                                 .build();
                 course = courseRepository.save(course);
 
@@ -51,7 +55,6 @@ public class CourseService {
                                                         : lessonDto.getSummary())
                                         .summary(lessonDto.getSummary())
                                         .estimatedReadTime(lessonDto.getEstimatedReadTime())
-                                        .recapVideoPath(lessonDto.getRecapVideoPath())
                                         .build();
                         lesson = lessonRepository.save(lesson);
 
@@ -60,16 +63,28 @@ public class CourseService {
                                         .title("Quiz — " + lessonDto.getTitle())
                                         .passingScore(70)
                                         .maxAttempts(3)
+                                        .timeLimitMinutes(15)
                                         .build();
                         quiz = quizRepository.save(quiz);
 
                         if (lessonDto.getFlashcards() != null) {
                                 for (FlashcardDto fcDto : lessonDto.getFlashcards()) {
+                                        DifficultyLevel fcDifficulty;
+                                        try {
+                                                fcDifficulty = (fcDto.getDifficulty() != null
+                                                                && !fcDto.getDifficulty().isBlank())
+                                                                                ? DifficultyLevel.valueOf(fcDto
+                                                                                                .getDifficulty().trim()
+                                                                                                .toUpperCase())
+                                                                                : DifficultyLevel.MEDIUM;
+                                        } catch (IllegalArgumentException e) {
+                                                fcDifficulty = DifficultyLevel.MEDIUM;
+                                        }
                                         Flashcard flashcard = Flashcard.builder()
                                                         .lessonId(lesson.getId())
                                                         .term(fcDto.getTerm())
                                                         .definition(fcDto.getDefinition())
-                                                        .difficulty(DifficultyLevel.MEDIUM)
+                                                        .difficulty(fcDifficulty)
                                                         .build();
                                         Flashcard savedFlashcard = flashcardRepository.save(flashcard);
                                         flashcardReviewRepository.save(FlashcardReview.builder()

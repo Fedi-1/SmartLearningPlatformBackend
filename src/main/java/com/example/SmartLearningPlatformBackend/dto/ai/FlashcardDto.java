@@ -11,4 +11,7 @@ public class FlashcardDto {
 
     @JsonProperty("definition")
     private String definition;
+
+    @JsonProperty("difficulty")
+    private String difficulty;
 }

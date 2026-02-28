@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -107,7 +108,7 @@ public class QuizService {
                                 .map(this::toQuestionResponse)
                                 .collect(Collectors.toList());
 
-                return toAttemptResponse(attempt, attemptsUsed + 1, quiz.getMaxAttempts(), questionDtos);
+                return toAttemptResponse(attempt, attemptsUsed + 1, quiz.getMaxAttempts(), questionDtos, quiz);
         }
 
         // ─── Submit attempt ──────────────────────────────────────────────────────
@@ -177,7 +178,16 @@ public class QuizService {
                 attempt.setScore(score);
                 attempt.setIsPassed(passed);
                 attempt.setSubmittedAt(LocalDateTime.now());
-                attempt.setFinishReason(FinishReason.SUBMITTED);
+
+                // Determine finish reason from request (defaults to SUBMITTED)
+                FinishReason finishReason = FinishReason.SUBMITTED;
+                if (request.getFinishReason() != null) {
+                        try {
+                                finishReason = FinishReason.valueOf(request.getFinishReason().toUpperCase());
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                }
+                attempt.setFinishReason(finishReason);
                 quizAttemptRepository.save(attempt);
 
                 int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quiz.getId());
@@ -195,6 +205,37 @@ public class QuizService {
                                 .attemptsExhausted(attemptsExhausted)
                                 .lessonProgress(progressResponse)
                                 .build();
+        }
+
+        // ─── Abandon attempt ─────────────────────────────────────────────────────
+
+        @Transactional
+        public QuizAttemptResponse abandonAttempt(Long attemptId, Long studentId) {
+
+                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Attempt not found."));
+
+                if (!attempt.getStudentId().equals(studentId)) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied.");
+                }
+                if (attempt.getSubmittedAt() != null) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt already submitted.");
+                }
+
+                Quiz quiz = quizRepository.findById(attempt.getQuizId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Quiz not found."));
+
+                attempt.setScore(0);
+                attempt.setIsPassed(false);
+                attempt.setSubmittedAt(LocalDateTime.now());
+                attempt.setFinishReason(FinishReason.ABANDONED);
+                quizAttemptRepository.save(attempt);
+
+                int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quiz.getId());
+                // NOTE: No lesson unlock on abandon
+                return toAttemptResponse(attempt, attemptsUsed, quiz.getMaxAttempts(), null, quiz);
         }
 
         // ─── My attempts ─────────────────────────────────────────────────────────
@@ -263,6 +304,12 @@ public class QuizService {
                         currentProgress.setQuizPassed(true);
                         currentProgress.setCompletedAt(LocalDateTime.now());
                         lessonProgressRepository.save(currentProgress);
+
+                        long minutesElapsed = ChronoUnit.MINUTES.between(
+                                        lesson.getCreatedAt(), currentProgress.getCompletedAt());
+                        int timeSpent = (int) Math.min(minutesElapsed, 480);
+                        currentProgress.setTimeSpent(timeSpent);
+                        lessonProgressRepository.save(currentProgress);
                 }
 
                 if (passed || attemptsExhausted) {
@@ -293,6 +340,12 @@ public class QuizService {
         private QuizAttemptResponse toAttemptResponse(
                         QuizAttempt a, int attemptsUsed, int maxAttempts,
                         List<QuizQuestionResponse> questions) {
+                return toAttemptResponse(a, attemptsUsed, maxAttempts, questions, null);
+        }
+
+        private QuizAttemptResponse toAttemptResponse(
+                        QuizAttempt a, int attemptsUsed, int maxAttempts,
+                        List<QuizQuestionResponse> questions, Quiz quiz) {
 
                 return QuizAttemptResponse.builder()
                                 .id(a.getId())
@@ -305,6 +358,7 @@ public class QuizService {
                                 .finishReason(a.getFinishReason() != null ? a.getFinishReason().name() : null)
                                 .attemptsUsed(attemptsUsed)
                                 .maxAttempts(maxAttempts)
+                                .timeLimitMinutes(quiz != null ? quiz.getTimeLimitMinutes() : null)
                                 .questions(questions)
                                 .build();
         }

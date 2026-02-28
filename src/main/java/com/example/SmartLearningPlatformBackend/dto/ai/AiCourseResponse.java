@@ -11,6 +11,9 @@ public class AiCourseResponse {
     @JsonProperty("courseTitle")
     private String courseTitle;
 
+    @JsonProperty("courseDescription")
+    private String courseDescription;
+
     @JsonProperty("category")
     private String category;
 

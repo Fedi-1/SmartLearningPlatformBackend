@@ -89,7 +89,7 @@ public class ExamGenerationService {
                     .sectionEasyCount(10)
                     .sectionMediumCount(10)
                     .sectionHardCount(5)
-                    .isDeleted(false)
+                    .timeLimitMinutes(50)
                     .build();
             Exam savedExam = examRepository.saveAndFlush(exam);
 
@@ -199,6 +199,7 @@ public class ExamGenerationService {
                 .finishReason(null)
                 .attemptsUsed(attemptsUsed + 1)
                 .maxAttempts(exam.getMaxAttempts())
+                .timeLimitMinutes(exam.getTimeLimitMinutes())
                 .hasCertificate(false)
                 .questions(questionDtos)
                 .build();
@@ -265,7 +266,16 @@ public class ExamGenerationService {
         attempt.setScore(score);
         attempt.setIsPassed(passed);
         attempt.setSubmittedAt(LocalDateTime.now());
-        attempt.setFinishReason(FinishReason.SUBMITTED);
+
+        // Determine finish reason from request (defaults to SUBMITTED)
+        FinishReason finishReason = FinishReason.SUBMITTED;
+        if (request.getFinishReason() != null) {
+            try {
+                finishReason = FinishReason.valueOf(request.getFinishReason().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        attempt.setFinishReason(finishReason);
         examAttemptRepository.save(attempt);
 
         // Issue certificate if passed
@@ -292,6 +302,48 @@ public class ExamGenerationService {
                 .totalPointsPossible(totalPointsPossible)
                 .attemptNumber(attempt.getAttemptNumber())
                 .certificateUuid(certUuid)
+                .build();
+    }
+
+    // ─── Abandon exam attempt ─────────────────────────────────────────────────
+
+    @Transactional
+    public ExamAttemptResponse abandonAttempt(Long attemptId, Long studentId) {
+
+        ExamAttempt attempt = examAttemptRepository.findById(attemptId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attempt not found."));
+        if (!attempt.getStudentId().equals(studentId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied.");
+        }
+        if (attempt.getSubmittedAt() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt already submitted.");
+        }
+
+        Exam exam = examRepository.findById(attempt.getExamId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found."));
+
+        attempt.setScore(0);
+        attempt.setIsPassed(false);
+        attempt.setSubmittedAt(LocalDateTime.now());
+        attempt.setFinishReason(FinishReason.ABANDONED);
+        examAttemptRepository.save(attempt);
+
+        int attemptsUsed = examAttemptRepository.countByStudentIdAndExamId(studentId, exam.getId());
+        // NOTE: No certificate for abandoned attempts
+        return ExamAttemptResponse.builder()
+                .id(attempt.getId())
+                .examId(attempt.getExamId())
+                .attemptNumber(attempt.getAttemptNumber())
+                .score(0)
+                .isPassed(false)
+                .startedAt(attempt.getStartedAt())
+                .submittedAt(attempt.getSubmittedAt())
+                .finishReason(FinishReason.ABANDONED.name())
+                .attemptsUsed(attemptsUsed)
+                .maxAttempts(exam.getMaxAttempts())
+                .timeLimitMinutes(exam.getTimeLimitMinutes())
+                .hasCertificate(false)
+                .questions(null)
                 .build();
     }
 
@@ -333,6 +385,7 @@ public class ExamGenerationService {
                 .sectionEasyCount(exam.getSectionEasyCount())
                 .sectionMediumCount(exam.getSectionMediumCount())
                 .sectionHardCount(exam.getSectionHardCount())
+                .timeLimitMinutes(exam.getTimeLimitMinutes())
                 .createdAt(exam.getCreatedAt())
                 .build();
     }

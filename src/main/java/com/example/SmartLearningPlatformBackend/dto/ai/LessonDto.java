@@ -23,9 +23,6 @@ public class LessonDto {
     @JsonProperty("estimatedReadTime")
     private Integer estimatedReadTime;
 
-    @JsonProperty("recapVideoPath")
-    private String recapVideoPath;
-
     @JsonProperty("flashcards")
     private List<FlashcardDto> flashcards;
 }

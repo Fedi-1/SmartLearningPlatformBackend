@@ -19,6 +19,7 @@ public class ExamAttemptResponse {
     private String finishReason;
     private Integer attemptsUsed;
     private Integer maxAttempts;
+    private Integer timeLimitMinutes;
     private Boolean hasCertificate;
     private List<ExamQuestionResponse> questions;
 }

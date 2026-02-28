@@ -34,6 +34,9 @@ public class Quiz {
     @Column(name = "max_attempts", nullable = false)
     private Integer maxAttempts;
 
+    @Column(name = "time_limit_minutes", nullable = false)
+    private Integer timeLimitMinutes;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

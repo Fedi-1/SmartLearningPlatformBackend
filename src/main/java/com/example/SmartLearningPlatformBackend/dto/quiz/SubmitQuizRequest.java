@@ -8,4 +8,7 @@ import java.util.List;
 public class SubmitQuizRequest {
 
     private List<AnswerRequest> answers;
+
+    /** SUBMITTED | TIME_EXPIRED — defaults to SUBMITTED if absent */
+    private String finishReason;
 }

@@ -132,4 +132,45 @@ public class AiServiceClient {
             throw new AiServiceException("AI exam generation error: " + e.getMessage());
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, String> generateLessonRecap(
+            Long lessonId, int lessonNumber, String lessonTitle,
+            List<String> flashcardTerms, String lessonSummary,
+            int estimatedReadTime, String courseTitle, String language) {
+        try {
+            String url = aiServiceBaseUrl + "/api/generate-lesson-recap";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("lessonId", lessonId);
+            body.put("lessonNumber", lessonNumber);
+            body.put("lessonTitle", lessonTitle);
+            body.put("flashcardTerms", flashcardTerms);
+            body.put("lessonSummary", lessonSummary);
+            body.put("estimatedReadTime", estimatedReadTime);
+            body.put("courseTitle", courseTitle);
+            body.put("language", language);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+                    url, requestEntity, (Class<Map<String, Object>>) (Class<?>) Map.class);
+
+            if (response.getBody() == null) {
+                throw new AiServiceException("AI service returned empty recap response.");
+            }
+
+            return (Map<String, String>) (Map<?, ?>) response.getBody();
+
+        } catch (ResourceAccessException e) {
+            throw new AiServiceException("AI service is unreachable. Please ensure it is running on port 8000.");
+        } catch (AiServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiServiceException("AI recap generation error: " + e.getMessage());
+        }
+    }
 }

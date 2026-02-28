@@ -16,5 +16,6 @@ public class ExamResponse {
     private Integer sectionEasyCount;
     private Integer sectionMediumCount;
     private Integer sectionHardCount;
+    private Integer timeLimitMinutes;
     private LocalDateTime createdAt;
 }
