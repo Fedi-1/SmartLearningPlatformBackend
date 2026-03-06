@@ -22,8 +22,8 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "student_id", nullable = false)
-    private Long studentId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
@@ -39,6 +39,12 @@ public class Notification {
     @Column(name = "message", columnDefinition = "TEXT", nullable = false)
     private String message;
 
+    @Column(name = "reference_id")
+    private Long referenceId;
+
+    @Column(name = "action_url")
+    private String actionUrl;
+
     @Column(name = "is_read", nullable = false)
     @Builder.Default
     private Boolean isRead = false;
@@ -50,8 +56,8 @@ public class Notification {
     private LocalDateTime readAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id", referencedColumnName = "id", insertable = false, updatable = false)
-    private Student student;
+    @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private User user;
 
     @PrePersist
     protected void onCreate() {

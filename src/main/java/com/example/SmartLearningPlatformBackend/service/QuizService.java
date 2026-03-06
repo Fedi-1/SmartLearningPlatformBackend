@@ -5,6 +5,7 @@ import com.example.SmartLearningPlatformBackend.dto.lesson.LessonProgressRespons
 import com.example.SmartLearningPlatformBackend.dto.quiz.*;
 import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.enums.FinishReason;
+import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
 import com.example.SmartLearningPlatformBackend.enums.QuestionType;
 import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
@@ -30,7 +31,9 @@ public class QuizService {
         private final QuizQuestionRepository quizQuestionRepository;
         private final LessonRepository lessonRepository;
         private final LessonProgressRepository lessonProgressRepository;
+        private final CourseRepository courseRepository;
         private final AiServiceClient aiServiceClient;
+        private final NotificationService notificationService;
 
         // ─── Start attempt ───────────────────────────────────────────────────────
 
@@ -310,6 +313,28 @@ public class QuizService {
                         int timeSpent = (int) Math.min(minutesElapsed, 480);
                         currentProgress.setTimeSpent(timeSpent);
                         lessonProgressRepository.save(currentProgress);
+
+                        // Check if all lessons in the course are now complete → fire COURSE_COMPLETE
+                        List<Lesson> allLessons = lessonRepository
+                                        .findByCourseIdOrderByLessonNumberAsc(lesson.getCourseId());
+                        List<Long> allLessonIds = allLessons.stream().map(Lesson::getId).collect(Collectors.toList());
+                        List<LessonProgress> allProgress = lessonProgressRepository
+                                        .findByStudentIdAndLessonIdIn(studentId, allLessonIds);
+                        boolean courseComplete = allProgress.size() == allLessons.size()
+                                        && allProgress.stream().allMatch(p -> Boolean.TRUE.equals(p.getIsCompleted()));
+                        if (courseComplete) {
+                                Course course = courseRepository.findById(lesson.getCourseId())
+                                                .orElse(null);
+                                String courseTitle = course != null ? course.getTitle() : "your course";
+                                notificationService.notify(
+                                                studentId,
+                                                NotificationCategory.COURSE_COMPLETE,
+                                                "Course Completed 🎓",
+                                                String.format("You've completed all lessons in \"%s\". You can now take the final exam!",
+                                                                courseTitle),
+                                                lesson.getCourseId(),
+                                                "/dashboard/courses/" + lesson.getCourseId());
+                        }
                 }
 
                 if (passed || attemptsExhausted) {

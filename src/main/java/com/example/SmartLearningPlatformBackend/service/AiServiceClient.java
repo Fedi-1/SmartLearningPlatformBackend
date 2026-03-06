@@ -173,4 +173,32 @@ public class AiServiceClient {
             throw new AiServiceException("AI recap generation error: " + e.getMessage());
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> generateCertificate(Map<String, Object> payload) {
+        try {
+            String url = aiServiceBaseUrl + "/api/generate-certificate";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+                    url, requestEntity, (Class<Map<String, Object>>) (Class<?>) Map.class);
+
+            if (response.getBody() == null) {
+                throw new AiServiceException("AI service returned empty certificate response.");
+            }
+
+            return response.getBody();
+
+        } catch (ResourceAccessException e) {
+            throw new AiServiceException("AI service is unreachable. Please ensure it is running on port 8000.");
+        } catch (AiServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiServiceException("Certificate generation error: " + e.getMessage());
+        }
+    }
 }

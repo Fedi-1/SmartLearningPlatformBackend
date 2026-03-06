@@ -49,9 +49,8 @@ public class Document {
     @Builder.Default
     private DocumentStatus status = DocumentStatus.UPLOADED;
 
-    @Column(name = "is_deleted", nullable = false)
-    @Builder.Default
-    private Boolean isDeleted = false;
+    @Column(name = "file_hash")
+    private String fileHash;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", referencedColumnName = "id", insertable = false, updatable = false)

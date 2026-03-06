@@ -13,4 +13,5 @@ public class SubmitExamResponse {
     private Integer totalPointsPossible;
     private Integer attemptNumber;
     private String certificateUuid;
+    private Long certificateId;
 }

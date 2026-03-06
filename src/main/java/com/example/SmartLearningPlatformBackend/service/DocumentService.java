@@ -13,6 +13,7 @@ import com.example.SmartLearningPlatformBackend.models.Student;
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
 import com.example.SmartLearningPlatformBackend.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
@@ -61,54 +63,96 @@ public class DocumentService {
 
         FileType fileType = determineFileType(originalFilename);
 
-        // 2. Save file to disk
+        // 2. Read file bytes and compute SHA-256 hash
+        byte[] fileBytes;
+        try {
+            fileBytes = file.getBytes();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read file bytes: " + e.getMessage());
+        }
+        String fileHash = HashingUtil.computeSHA256(fileBytes);
+
+        // 3. Save file to disk
         String storedName = UUID.randomUUID() + "_" + originalFilename;
         Path uploadPath = Paths.get(uploadDir);
         try {
             Files.createDirectories(uploadPath);
-            Files.copy(file.getInputStream(), uploadPath.resolve(storedName));
+            Files.write(uploadPath.resolve(storedName), fileBytes);
         } catch (IOException e) {
             throw new RuntimeException("Failed to save file to disk: " + e.getMessage());
         }
 
-        // 3. Persist Document with PROCESSING status
+        // 4. Persist Document with fileHash and PROCESSING status
         Document document = Document.builder()
                 .studentId(student.getId())
                 .fileName(originalFilename)
                 .fileType(fileType)
                 .fileSize(file.getSize())
                 .filePath(uploadPath.resolve(storedName).toString())
+                .fileHash(fileHash)
                 .status(DocumentStatus.PROCESSING)
                 .build();
-        document = documentRepository.save(document);
+        final Document savedDocument = documentRepository.save(document);
 
-        // 4. Call AI service
+        // 5. Check for existing document with same hash (excluding current document)
+        Optional<Document> existingDocOpt = documentRepository.findFirstByFileHash(fileHash)
+                .filter(existing -> !existing.getId().equals(savedDocument.getId()));
+
+        Course course;
+
+        if (existingDocOpt.isPresent()) {
+            Document existingDocument = existingDocOpt.get();
+            log.info("Hash match found for document {} — cloning course from document {}",
+                    savedDocument.getId(), existingDocument.getId());
+
+            Optional<Course> existingCourseOpt = courseRepository.findByDocumentId(existingDocument.getId());
+
+            if (existingCourseOpt.isPresent()) {
+                // Clone the existing course for this student
+                course = courseService.cloneCourseForStudent(existingCourseOpt.get(), savedDocument, student.getId());
+
+                savedDocument.setStatus(DocumentStatus.COMPLETED);
+                savedDocument.setCategory(existingCourseOpt.get().getCategory());
+                documentRepository.save(savedDocument);
+
+                return UploadResponse.builder()
+                        .documentId(savedDocument.getId())
+                        .courseId(course.getId())
+                        .courseTitle(course.getTitle())
+                        .totalLessons(null)
+                        .build();
+            }
+            // Existing document has no course — fall through to normal AI generation
+        } else {
+            log.info("No hash match for document {} — proceeding with AI generation", savedDocument.getId());
+        }
+
+        // 6. Call AI service
         AiCourseResponse aiResponse;
         try {
             aiResponse = aiServiceClient.processDocument(file, fileType);
         } catch (Exception e) {
-            document.setStatus(DocumentStatus.FAILED);
-            documentRepository.save(document);
+            savedDocument.setStatus(DocumentStatus.FAILED);
+            documentRepository.save(savedDocument);
             throw e;
         }
 
-        // 5. Persist course, lessons, quizzes, flashcards
-        Course course;
+        // 7. Persist course, lessons, quizzes, flashcards
         try {
-            course = courseService.generateAndSave(aiResponse, document, student);
+            course = courseService.generateAndSave(aiResponse, savedDocument, student);
         } catch (Exception e) {
-            document.setStatus(DocumentStatus.FAILED);
-            documentRepository.save(document);
+            savedDocument.setStatus(DocumentStatus.FAILED);
+            documentRepository.save(savedDocument);
             throw new RuntimeException("Failed to save generated course: " + e.getMessage());
         }
 
-        // 6. Mark document COMPLETED and set detected category
-        document.setStatus(DocumentStatus.COMPLETED);
-        document.setCategory(aiResponse.getCategory());
-        documentRepository.save(document);
+        // 8. Mark document COMPLETED and set detected category
+        savedDocument.setStatus(DocumentStatus.COMPLETED);
+        savedDocument.setCategory(aiResponse.getCategory());
+        documentRepository.save(savedDocument);
 
         return UploadResponse.builder()
-                .documentId(document.getId())
+                .documentId(savedDocument.getId())
                 .courseId(course.getId())
                 .courseTitle(aiResponse.getCourseTitle())
                 .totalLessons(aiResponse.getTotalLessons())
@@ -118,7 +162,7 @@ public class DocumentService {
     // ─── List documents ─────────────────────────────────────────────────────────
 
     public List<DocumentResponse> getStudentDocuments(Long studentId) {
-        return documentRepository.findByStudentIdAndIsDeletedFalse(studentId)
+        return documentRepository.findByStudentId(studentId)
                 .stream()
                 .map(doc -> {
                     Optional<Course> course = courseRepository.findByDocumentId(doc.getId());
@@ -136,7 +180,7 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
-    // ─── Soft delete ────────────────────────────────────────────────────────────
+    // ─── Delete ─────────────────────────────────────────────────────────────────
 
     @Transactional
     public void softDeleteDocument(Long documentId, Long studentId) {
@@ -145,14 +189,7 @@ public class DocumentService {
         if (!document.getStudentId().equals(studentId)) {
             throw new IllegalArgumentException("Access denied.");
         }
-        document.setIsDeleted(true);
-        documentRepository.save(document);
-
-        // Propagate deletion to the course generated from this document
-        courseRepository.findByDocumentId(documentId).ifPresent(course -> {
-            course.setIsDeleted(true);
-            courseRepository.save(course);
-        });
+        documentRepository.delete(document);
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CourseService {
@@ -23,6 +25,7 @@ public class CourseService {
         private final CourseRepository courseRepository;
         private final LessonRepository lessonRepository;
         private final QuizRepository quizRepository;
+        private final QuizQuestionRepository quizQuestionRepository;
         private final FlashcardRepository flashcardRepository;
         private final FlashcardReviewRepository flashcardReviewRepository;
         private final LessonProgressRepository lessonProgressRepository;
@@ -120,7 +123,7 @@ public class CourseService {
 
         @Transactional(readOnly = true)
         public CourseDetailResponse getCourseById(Long courseId, Long studentId) {
-                Course course = courseRepository.findByIdAndIsDeletedFalse(courseId)
+                Course course = courseRepository.findById(courseId)
                                 .orElseThrow(() -> new IllegalArgumentException("Course not found."));
                 if (!course.getStudentId().equals(studentId)) {
                         throw new IllegalArgumentException("Access denied.");
@@ -179,7 +182,7 @@ public class CourseService {
 
         @Transactional(readOnly = true)
         public List<LessonProgressItem> getCourseProgress(Long courseId, Long studentId) {
-                Course course = courseRepository.findByIdAndIsDeletedFalse(courseId)
+                Course course = courseRepository.findById(courseId)
                                 .orElseThrow(() -> new IllegalArgumentException("Course not found."));
                 if (!course.getStudentId().equals(studentId)) {
                         throw new IllegalArgumentException("Access denied.");
@@ -199,5 +202,104 @@ public class CourseService {
                                                 .quizPassed(Boolean.TRUE.equals(lp.getQuizPassed()))
                                                 .build())
                                 .collect(Collectors.toList());
+        }
+
+        // ─── Clone course for duplicate document ─────────────────────────────────
+
+        @Transactional
+        public Course cloneCourseForStudent(Course sourceCourse, Document newDocument, Long studentId) {
+
+                Course newCourse = Course.builder()
+                                .documentId(newDocument.getId())
+                                .studentId(studentId)
+                                .title(sourceCourse.getTitle())
+                                .category(sourceCourse.getCategory())
+                                .description(sourceCourse.getDescription())
+                                .build();
+                newCourse = courseRepository.save(newCourse);
+
+                List<Lesson> sourceLessons = lessonRepository
+                                .findByCourseIdOrderByLessonNumberAsc(sourceCourse.getId());
+                List<Lesson> savedLessons = new ArrayList<>();
+
+                for (Lesson sourceLesson : sourceLessons) {
+
+                        Lesson newLesson = Lesson.builder()
+                                        .courseId(newCourse.getId())
+                                        .lessonNumber(sourceLesson.getLessonNumber())
+                                        .title(sourceLesson.getTitle())
+                                        .content(sourceLesson.getContent())
+                                        .summary(sourceLesson.getSummary())
+                                        .estimatedReadTime(sourceLesson.getEstimatedReadTime())
+                                        .build();
+                        final Lesson savedNewLesson = lessonRepository.save(newLesson);
+                        savedLessons.add(savedNewLesson);
+
+                        // Clone flashcards
+                        List<Flashcard> sourceFlashcards = flashcardRepository.findByLessonId(sourceLesson.getId());
+                        for (Flashcard sourceFlashcard : sourceFlashcards) {
+                                Flashcard newFlashcard = Flashcard.builder()
+                                                .lessonId(savedNewLesson.getId())
+                                                .term(sourceFlashcard.getTerm())
+                                                .definition(sourceFlashcard.getDefinition())
+                                                .difficulty(sourceFlashcard.getDifficulty())
+                                                .build();
+                                Flashcard savedFlashcard = flashcardRepository.save(newFlashcard);
+                                flashcardReviewRepository.save(FlashcardReview.builder()
+                                                .studentId(studentId)
+                                                .flashcardId(savedFlashcard.getId())
+                                                .easeFactor(2.5f)
+                                                .interval(0)
+                                                .repetitionCount(0)
+                                                .consecutiveCorrectReviews(0)
+                                                .nextReviewDate(LocalDate.now())
+                                                .build());
+                        }
+
+                        // Clone quiz and its questions
+                        quizRepository.findByLessonId(sourceLesson.getId()).ifPresent(sourceQuiz -> {
+                                Quiz newQuiz = Quiz.builder()
+                                                .lessonId(savedNewLesson.getId())
+                                                .title(sourceQuiz.getTitle())
+                                                .passingScore(sourceQuiz.getPassingScore())
+                                                .maxAttempts(sourceQuiz.getMaxAttempts())
+                                                .timeLimitMinutes(sourceQuiz.getTimeLimitMinutes())
+                                                .build();
+                                Quiz savedQuiz = quizRepository.save(newQuiz);
+
+                                List<QuizQuestion> sourceQuestions = quizQuestionRepository
+                                                .findByQuizIdOrderByQuestionNumberAsc(sourceQuiz.getId());
+                                for (QuizQuestion sourceQuestion : sourceQuestions) {
+                                        quizQuestionRepository.save(QuizQuestion.builder()
+                                                        .quizId(savedQuiz.getId())
+                                                        .questionNumber(sourceQuestion.getQuestionNumber())
+                                                        .questionText(sourceQuestion.getQuestionText())
+                                                        .questionType(sourceQuestion.getQuestionType())
+                                                        .correctAnswer(sourceQuestion.getCorrectAnswer())
+                                                        .option1(sourceQuestion.getOption1())
+                                                        .option2(sourceQuestion.getOption2())
+                                                        .option3(sourceQuestion.getOption3())
+                                                        .option4(sourceQuestion.getOption4())
+                                                        .explanation(sourceQuestion.getExplanation())
+                                                        .difficulty(sourceQuestion.getDifficulty())
+                                                        .pointsWorth(sourceQuestion.getPointsWorth())
+                                                        .build());
+                                }
+                        });
+                }
+
+                // Initialise LessonProgress: first lesson unlocked, all others locked
+                for (int i = 0; i < savedLessons.size(); i++) {
+                        Lesson saved = savedLessons.get(i);
+                        lessonProgressRepository.save(LessonProgress.builder()
+                                        .studentId(studentId)
+                                        .lessonId(saved.getId())
+                                        .isLocked(i != 0)
+                                        .isCompleted(false)
+                                        .quizPassed(false)
+                                        .build());
+                }
+
+                return newCourse;
         }
 }

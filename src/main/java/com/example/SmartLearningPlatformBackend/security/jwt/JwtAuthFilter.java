@@ -32,12 +32,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         final String jwt;
         final String userEmail;
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // SSE endpoint passes token as query param (EventSource can't set headers).
+        // Exclude /api/auth/** so that UUID tokens (verify-email, reset-password)
+        // are never mistaken for JWTs.
+        String requestPath = request.getServletPath();
+        String queryToken = request.getParameter("token");
+        boolean isAuthPath = requestPath.startsWith("/api/auth/");
+        if (!isAuthPath && (authHeader == null || !authHeader.startsWith("Bearer ")) && queryToken != null) {
+            jwt = queryToken;
+        } else if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7);
+        } else {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
         userEmail = jwtService.extractUsername(jwt);
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {

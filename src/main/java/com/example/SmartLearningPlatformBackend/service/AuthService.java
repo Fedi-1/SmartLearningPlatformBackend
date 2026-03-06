@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +26,16 @@ public class AuthService {
         private final PasswordEncoder passwordEncoder;
         private final JwtService jwtService;
         private final AuthenticationManager authenticationManager;
+        private final NotificationService notificationService;
+
+        // ─── Register ────────────────────────────────────────────────────────────
 
         public AuthResponse register(RegisterRequest request) {
                 if (userRepository.existsByEmail(request.getEmail())) {
                         throw new IllegalArgumentException("Email already in use");
                 }
+
+                String verificationToken = UUID.randomUUID().toString();
 
                 var student = Student.builder()
                                 .firstName(request.getFirstName())
@@ -38,16 +44,23 @@ public class AuthService {
                                 .password(passwordEncoder.encode(request.getPassword()))
                                 .role(UserRole.STUDENT)
                                 .isActive(true)
+                                .isVerified(false)
+                                .verificationToken(verificationToken)
+                                .lastVerificationEmailSent(LocalDateTime.now())
                                 .dateOfBirth(request.getDateOfBirth())
                                 .phoneNumber(request.getPhoneNumber())
                                 .build();
 
                 var saved = userRepository.save(student);
-                var userDetails = new UserDetailsImpl(saved);
-                var token = jwtService.generateToken(userDetails);
+
+                String verificationLink = "http://localhost:4200/verify-email?token=" + verificationToken;
+                notificationService.sendEmailNotification(
+                                saved.getId(),
+                                "Verify your LearnAI account",
+                                "Click the button below to verify your account. This link does not expire.",
+                                verificationLink);
 
                 return AuthResponse.builder()
-                                .token(token)
                                 .id(saved.getId())
                                 .firstName(saved.getFirstName())
                                 .lastName(saved.getLastName())
@@ -56,12 +69,18 @@ public class AuthService {
                                 .build();
         }
 
-        public AuthResponse login(LoginRequest request) {
-                authenticationManager.authenticate(
-                                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        // ─── Login ───────────────────────────────────────────────────────────────
 
+        public AuthResponse login(LoginRequest request) {
                 var user = userRepository.findByEmail(request.getEmail())
                                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+                if (Boolean.FALSE.equals(user.getIsVerified())) {
+                        throw new RuntimeException("Account not verified. Please check your email.");
+                }
+
+                authenticationManager.authenticate(
+                                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
                 user.setLastLogin(LocalDateTime.now());
                 userRepository.save(user);
@@ -77,5 +96,84 @@ public class AuthService {
                                 .email(user.getEmail())
                                 .role(user.getRole())
                                 .build();
+        }
+
+        // ─── Verify email ─────────────────────────────────────────────────────────
+
+        public void verifyEmail(String token) {
+                var user = userRepository.findByVerificationToken(token)
+                                .orElseThrow(() -> new RuntimeException("Invalid or expired verification token."));
+
+                user.setIsVerified(true);
+                user.setVerificationToken(null);
+                userRepository.save(user);
+        }
+
+        // ─── Resend verification email ────────────────────────────────────────────
+
+        public void resendVerificationEmail(String email) {
+                var user = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new RuntimeException("No account found with this email."));
+
+                if (Boolean.TRUE.equals(user.getIsVerified())) {
+                        throw new RuntimeException("Account is already verified.");
+                }
+
+                // Rate-limit: 45 seconds between resend attempts
+                if (user.getLastVerificationEmailSent() != null) {
+                        long secondsSinceLast = java.time.Duration
+                                        .between(user.getLastVerificationEmailSent(), LocalDateTime.now())
+                                        .getSeconds();
+                        if (secondsSinceLast < 45) {
+                                throw new RuntimeException("Please wait before requesting another verification email.");
+                        }
+                }
+
+                String verificationToken = UUID.randomUUID().toString();
+                user.setVerificationToken(verificationToken);
+                user.setLastVerificationEmailSent(LocalDateTime.now());
+                userRepository.save(user);
+
+                String verificationLink = "http://localhost:4200/verify-email?token=" + verificationToken;
+                notificationService.sendEmailNotification(
+                                user.getId(),
+                                "Verify your LearnAI account",
+                                "Click the button below to verify your account. This link does not expire.",
+                                verificationLink);
+        }
+
+        // ─── Forgot password ──────────────────────────────────────────────────────
+
+        public void forgotPassword(String email) {
+                var user = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new RuntimeException("No account found with this email."));
+
+                String resetToken = UUID.randomUUID().toString();
+                user.setResetToken(resetToken);
+                user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(15));
+                userRepository.save(user);
+
+                String resetLink = "http://localhost:4200/reset-password?token=" + resetToken;
+                notificationService.sendEmailNotification(
+                                user.getId(),
+                                "Reset your LearnAI password",
+                                "Click the button below to reset your password. This link expires in 15 minutes.",
+                                resetLink);
+        }
+
+        // ─── Reset password ───────────────────────────────────────────────────────
+
+        public void resetPassword(String token, String newPassword) {
+                var user = userRepository.findByResetToken(token)
+                                .orElseThrow(() -> new RuntimeException("Invalid or expired reset token."));
+
+                if (user.getResetTokenExpiry() == null || LocalDateTime.now().isAfter(user.getResetTokenExpiry())) {
+                        throw new RuntimeException("Reset link has expired.");
+                }
+
+                user.setPassword(passwordEncoder.encode(newPassword));
+                user.setResetToken(null);
+                user.setResetTokenExpiry(null);
+                userRepository.save(user);
         }
 }

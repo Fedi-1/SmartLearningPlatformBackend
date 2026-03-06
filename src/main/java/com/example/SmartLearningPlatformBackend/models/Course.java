@@ -40,10 +40,6 @@ public class Course {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "is_deleted", nullable = false)
-    @Builder.Default
-    private Boolean isDeleted = false;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Document document;

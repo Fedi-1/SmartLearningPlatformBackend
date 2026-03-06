@@ -12,7 +12,5 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     Optional<Course> findByDocumentId(Long documentId);
 
-    List<Course> findByStudentIdAndIsDeletedFalse(Long studentId);
-
-    Optional<Course> findByIdAndIsDeletedFalse(Long id);
+    List<Course> findByStudentId(Long studentId);
 }

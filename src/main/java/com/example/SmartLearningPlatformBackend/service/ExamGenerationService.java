@@ -3,6 +3,7 @@ package com.example.SmartLearningPlatformBackend.service;
 import com.example.SmartLearningPlatformBackend.dto.exam.*;
 import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.enums.FinishReason;
+import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
 import com.example.SmartLearningPlatformBackend.enums.QuestionType;
 import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
@@ -32,6 +33,7 @@ public class ExamGenerationService {
     private final CourseRepository courseRepository;
     private final AiServiceClient aiServiceClient;
     private final PlatformTransactionManager transactionManager;
+    private final NotificationService notificationService;
 
     // ─── Generate exam for course ─────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ public class ExamGenerationService {
             Exam exam = Exam.builder()
                     .courseId(courseId)
                     .title("Examen Final")
-                    .passingScore(70)
+                    .passingScore(10)
                     .maxAttempts(3)
                     .totalPoints(45)
                     .sectionEasyCount(10)
@@ -280,18 +282,58 @@ public class ExamGenerationService {
 
         // Issue certificate if passed
         String certUuid = null;
+        Long certId = null;
+        boolean newCertIssued = false;
         if (passed) {
-            certUuid = UUID.randomUUID().toString();
-            certificateRepository.save(Certificate.builder()
-                    .certificateUuid(certUuid)
-                    .studentId(studentId)
-                    .courseId(exam.getCourseId())
-                    .examAttemptId(attemptId)
-                    .score(score)
-                    .issuedAt(LocalDateTime.now())
-                    .isRevoked(false)
-                    .pdfFilePath(null)
-                    .build());
+            // Re-use existing certificate if one was already issued for this student+course
+            java.util.Optional<Certificate> existingCert = certificateRepository.findByStudentIdAndCourseId(studentId,
+                    exam.getCourseId());
+            if (existingCert.isPresent()) {
+                certUuid = existingCert.get().getCertificateUuid();
+                certId = existingCert.get().getId();
+            } else {
+                certUuid = UUID.randomUUID().toString();
+                Certificate saved = certificateRepository.save(Certificate.builder()
+                        .certificateUuid(certUuid)
+                        .studentId(studentId)
+                        .courseId(exam.getCourseId())
+                        .examAttemptId(attemptId)
+                        .score(score)
+                        .issuedAt(LocalDateTime.now())
+                        .isRevoked(false)
+                        .pdfFilePath(null)
+                        .build());
+                certId = saved.getId();
+                newCertIssued = true;
+            }
+        }
+
+        // ── Fire notifications ────────────────────────────────────────────────
+        String courseTitle = courseRepository.findById(exam.getCourseId())
+                .map(Course::getTitle).orElse("your course");
+
+        String resultMsg = passed
+                ? String.format("Congratulations! You passed the exam for \"%s\" with a score of %d%%.", courseTitle,
+                        score)
+                : String.format("You scored %d%% on the exam for \"%s\". Keep studying and try again!", score,
+                        courseTitle);
+
+        notificationService.notify(
+                studentId,
+                NotificationCategory.EXAM_RESULT,
+                passed ? "Exam Passed 🎉" : "Exam Result",
+                resultMsg,
+                exam.getCourseId(),
+                "/dashboard/courses/" + exam.getCourseId());
+
+        if (newCertIssued) {
+            notificationService.notify(
+                    studentId,
+                    NotificationCategory.CERTIFICATE,
+                    "Certificate Issued 🏆",
+                    String.format("Your certificate for \"%s\" is ready. Click to download it.", courseTitle),
+                    certId,
+                    "http://localhost:8069/api/certificates/" + certUuid + "/download");
         }
 
         return SubmitExamResponse.builder()
@@ -302,6 +344,7 @@ public class ExamGenerationService {
                 .totalPointsPossible(totalPointsPossible)
                 .attemptNumber(attempt.getAttemptNumber())
                 .certificateUuid(certUuid)
+                .certificateId(certId)
                 .build();
     }
 
