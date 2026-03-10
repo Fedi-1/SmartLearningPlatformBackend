@@ -2,13 +2,19 @@
 package com.example.SmartLearningPlatformBackend.controller;
 
 import com.example.SmartLearningPlatformBackend.dto.admin.*;
+import com.example.SmartLearningPlatformBackend.dto.student.ChangePasswordRequest;
+import com.example.SmartLearningPlatformBackend.dto.student.StudentProfileResponse;
+import com.example.SmartLearningPlatformBackend.dto.student.UpdateProfileRequest;
+import com.example.SmartLearningPlatformBackend.models.UserDetailsImpl;
 import com.example.SmartLearningPlatformBackend.service.AdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -80,5 +86,39 @@ public class AdminController {
     @GetMapping("/exam-attempts")
     public ResponseEntity<List<AdminExamAttemptItem>> getAllExamAttempts() {
         return ResponseEntity.ok(adminService.getAllExamAttempts());
+    }
+
+    @GetMapping("/activity-logs")
+    public ResponseEntity<ActivityLogPageResponse> getActivityLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) Long studentId) {
+        return ResponseEntity.ok(adminService.getActivityLogs(page, size, action, studentId));
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<StudentProfileResponse> getProfile(
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        return ResponseEntity.ok(adminService.getAdminProfile(principal.getUser().getId()));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<StudentProfileResponse> updateProfile(
+            @AuthenticationPrincipal UserDetailsImpl principal,
+            @RequestBody UpdateProfileRequest request) {
+        return ResponseEntity.ok(adminService.updateAdminProfile(principal.getUser().getId(), request));
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal UserDetailsImpl principal,
+            @RequestBody ChangePasswordRequest request) {
+        try {
+            adminService.changeAdminPassword(principal.getUser().getId(), request);
+            return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
+        }
     }
 }
