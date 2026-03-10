@@ -79,6 +79,10 @@ public class AuthService {
                         throw new RuntimeException("Account not verified. Please check your email.");
                 }
 
+                if (Boolean.FALSE.equals(user.getIsActive())) {
+                        throw new RuntimeException("Account suspended. Please contact support.");
+                }
+
                 authenticationManager.authenticate(
                                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 

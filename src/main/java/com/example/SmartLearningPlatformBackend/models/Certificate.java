@@ -1,5 +1,7 @@
+// src/main/java/com/example/SmartLearningPlatformBackend/models/Certificate.java
 package com.example.SmartLearningPlatformBackend.models;
 
+import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,12 +40,12 @@ public class Certificate {
     @Column(name = "issued_at", nullable = false, updatable = false)
     private LocalDateTime issuedAt;
 
-    @Column(name = "pdf_file_path")
-    private String pdfFilePath;
+    @Column(name = "pdf_content", columnDefinition = "bytea")
+    private byte[] pdfContent;
 
-    @Column(name = "is_revoked", nullable = false)
-    @Builder.Default
-    private Boolean isRevoked = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private CertificateStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", referencedColumnName = "id", insertable = false, updatable = false)

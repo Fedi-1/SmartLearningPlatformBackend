@@ -43,9 +43,14 @@ public class AuthController {
             AuthResponse response = authService.login(request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-            // Surface "Account not verified" as 403, all other auth errors as 401
+            // Surface "Account not verified" as 403, "Account suspended" as 423, all other
+            // auth errors as 401
             if (e.getMessage() != null && e.getMessage().contains("not verified")) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", e.getMessage()));
+            }
+            if (e.getMessage() != null && e.getMessage().contains("suspended")) {
+                return ResponseEntity.status(423)
                         .body(Map.of("message", e.getMessage()));
             }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

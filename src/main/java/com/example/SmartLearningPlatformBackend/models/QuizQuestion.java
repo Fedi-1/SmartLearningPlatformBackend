@@ -8,6 +8,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "quiz_questions")
 @Data
@@ -42,7 +45,7 @@ public class QuizQuestion {
     @Column(name = "option2", nullable = false)
     private String option2;
 
-    @Column(name = "option3", nullable = false)
+    @Column(name = "option3")
     private String option3;
 
     @Column(name = "option4")
@@ -61,4 +64,8 @@ public class QuizQuestion {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quiz_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Quiz quiz;
+
+    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<QuizAnswer> answers = new ArrayList<>();
 }

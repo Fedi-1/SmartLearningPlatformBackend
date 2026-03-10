@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,20 +36,8 @@ public class Exam {
     @Column(name = "total_points", nullable = false)
     private Integer totalPoints;
 
-    @Column(name = "section_easy_count", nullable = false)
-    private Integer sectionEasyCount;
-
-    @Column(name = "section_medium_count", nullable = false)
-    private Integer sectionMediumCount;
-
-    @Column(name = "section_hard_count", nullable = false)
-    private Integer sectionHardCount;
-
     @Column(name = "time_limit_minutes")
     private Integer timeLimitMinutes;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", referencedColumnName = "id", insertable = false, updatable = false)
@@ -59,9 +46,4 @@ public class Exam {
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ExamQuestion> questions = new ArrayList<>();
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
 }

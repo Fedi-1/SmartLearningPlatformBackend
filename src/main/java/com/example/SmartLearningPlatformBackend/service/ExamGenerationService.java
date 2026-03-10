@@ -1,6 +1,8 @@
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.exam.*;
+import com.example.SmartLearningPlatformBackend.enums.ActionType;
+import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.enums.FinishReason;
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
@@ -34,6 +36,7 @@ public class ExamGenerationService {
     private final AiServiceClient aiServiceClient;
     private final PlatformTransactionManager transactionManager;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
 
     // ─── Generate exam for course ─────────────────────────────────────────────
 
@@ -88,9 +91,6 @@ public class ExamGenerationService {
                     .passingScore(10)
                     .maxAttempts(3)
                     .totalPoints(45)
-                    .sectionEasyCount(10)
-                    .sectionMediumCount(10)
-                    .sectionHardCount(5)
                     .timeLimitMinutes(50)
                     .build();
             Exam savedExam = examRepository.saveAndFlush(exam);
@@ -280,6 +280,13 @@ public class ExamGenerationService {
         attempt.setFinishReason(finishReason);
         examAttemptRepository.save(attempt);
 
+        // Log exam result
+        if (passed) {
+            activityLogService.log(studentId, ActionType.PASS_EXAM, "ExamAttempt", attempt.getId());
+        } else {
+            activityLogService.log(studentId, ActionType.FAIL_EXAM, "ExamAttempt", attempt.getId());
+        }
+
         // Issue certificate if passed
         String certUuid = null;
         Long certId = null;
@@ -300,8 +307,7 @@ public class ExamGenerationService {
                         .examAttemptId(attemptId)
                         .score(score)
                         .issuedAt(LocalDateTime.now())
-                        .isRevoked(false)
-                        .pdfFilePath(null)
+                        .status(CertificateStatus.PENDING)
                         .build());
                 certId = saved.getId();
                 newCertIssued = true;
@@ -330,10 +336,13 @@ public class ExamGenerationService {
             notificationService.notify(
                     studentId,
                     NotificationCategory.CERTIFICATE,
-                    "Certificate Issued 🏆",
-                    String.format("Your certificate for \"%s\" is ready. Click to download it.", courseTitle),
+                    "Certificate Pending Approval ⏳",
+                    String.format(
+                            "Your certificate for \"%s\" has been submitted for review. " +
+                                    "You will be notified within 24-48 hours once an administrator approves it.",
+                            courseTitle),
                     certId,
-                    "http://localhost:8069/api/certificates/" + certUuid + "/download");
+                    null);
         }
 
         return SubmitExamResponse.builder()
@@ -425,11 +434,7 @@ public class ExamGenerationService {
                 .passingScore(exam.getPassingScore())
                 .maxAttempts(exam.getMaxAttempts())
                 .totalPoints(exam.getTotalPoints())
-                .sectionEasyCount(exam.getSectionEasyCount())
-                .sectionMediumCount(exam.getSectionMediumCount())
-                .sectionHardCount(exam.getSectionHardCount())
                 .timeLimitMinutes(exam.getTimeLimitMinutes())
-                .createdAt(exam.getCreatedAt())
                 .build();
     }
 

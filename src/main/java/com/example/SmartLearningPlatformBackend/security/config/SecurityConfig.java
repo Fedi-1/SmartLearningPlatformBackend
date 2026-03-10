@@ -33,6 +33,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/lessons/recap-image").permitAll()
                                                 .requestMatchers("/api/lessons/recap-video").permitAll()
                                                 .requestMatchers("/api/certificates/*/download").permitAll()
+                                                .requestMatchers("/api/admin/certificates/verify/**").permitAll()
                                                 .anyRequest().authenticated())
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

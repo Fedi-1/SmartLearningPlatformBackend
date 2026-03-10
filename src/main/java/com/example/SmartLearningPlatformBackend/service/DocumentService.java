@@ -7,25 +7,32 @@ import com.example.SmartLearningPlatformBackend.enums.DocumentStatus;
 import com.example.SmartLearningPlatformBackend.enums.FileType;
 import com.example.SmartLearningPlatformBackend.exception.FileTooLargeException;
 import com.example.SmartLearningPlatformBackend.exception.UnsupportedFileTypeException;
+import com.example.SmartLearningPlatformBackend.enums.ActionType;
 import com.example.SmartLearningPlatformBackend.models.Course;
 import com.example.SmartLearningPlatformBackend.models.Document;
+import com.example.SmartLearningPlatformBackend.models.ExamAttempt;
 import com.example.SmartLearningPlatformBackend.models.Student;
+import com.example.SmartLearningPlatformBackend.repository.CertificateRepository;
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
 import com.example.SmartLearningPlatformBackend.repository.DocumentRepository;
+import com.example.SmartLearningPlatformBackend.repository.ExamAnswerRepository;
+import com.example.SmartLearningPlatformBackend.repository.ExamAttemptQuestionRepository;
+import com.example.SmartLearningPlatformBackend.repository.ExamAttemptRepository;
+import com.example.SmartLearningPlatformBackend.repository.ExamRepository;
+import com.example.SmartLearningPlatformBackend.repository.LessonRepository;
+import com.example.SmartLearningPlatformBackend.repository.QuizAnswerRepository;
+import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository;
+import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
+import com.example.SmartLearningPlatformBackend.repository.SuspiciousActivityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,9 +47,17 @@ public class DocumentService {
     private final CourseRepository courseRepository;
     private final AiServiceClient aiServiceClient;
     private final CourseService courseService;
-
-    @Value("${app.upload.dir}")
-    private String uploadDir;
+    private final LessonRepository lessonRepository;
+    private final QuizRepository quizRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizAnswerRepository quizAnswerRepository;
+    private final ExamRepository examRepository;
+    private final ExamAttemptRepository examAttemptRepository;
+    private final ExamAttemptQuestionRepository examAttemptQuestionRepository;
+    private final ExamAnswerRepository examAnswerRepository;
+    private final CertificateRepository certificateRepository;
+    private final SuspiciousActivityRepository suspiciousActivityRepository;
+    private final ActivityLogService activityLogService;
 
     // ─── Upload & Generate ──────────────────────────────────────────────────────
 
@@ -72,27 +87,20 @@ public class DocumentService {
         }
         String fileHash = HashingUtil.computeSHA256(fileBytes);
 
-        // 3. Save file to disk
-        String storedName = UUID.randomUUID() + "_" + originalFilename;
-        Path uploadPath = Paths.get(uploadDir);
-        try {
-            Files.createDirectories(uploadPath);
-            Files.write(uploadPath.resolve(storedName), fileBytes);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to save file to disk: " + e.getMessage());
-        }
-
-        // 4. Persist Document with fileHash and PROCESSING status
+        // 3. Persist Document with file bytes and PROCESSING status
         Document document = Document.builder()
                 .studentId(student.getId())
                 .fileName(originalFilename)
                 .fileType(fileType)
                 .fileSize(file.getSize())
-                .filePath(uploadPath.resolve(storedName).toString())
+                .fileContent(fileBytes)
                 .fileHash(fileHash)
                 .status(DocumentStatus.PROCESSING)
                 .build();
         final Document savedDocument = documentRepository.save(document);
+
+        // Log the document upload
+        activityLogService.log(student.getId(), ActionType.UPLOAD_DOCUMENT, "Document", savedDocument.getId());
 
         // 5. Check for existing document with same hash (excluding current document)
         Optional<Document> existingDocOpt = documentRepository.findFirstByFileHash(fileHash)
@@ -115,6 +123,9 @@ public class DocumentService {
                 savedDocument.setCategory(existingCourseOpt.get().getCategory());
                 documentRepository.save(savedDocument);
 
+                // Log the course generation activity
+                activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
+
                 return UploadResponse.builder()
                         .documentId(savedDocument.getId())
                         .courseId(course.getId())
@@ -130,7 +141,7 @@ public class DocumentService {
         // 6. Call AI service
         AiCourseResponse aiResponse;
         try {
-            aiResponse = aiServiceClient.processDocument(file, fileType);
+            aiResponse = aiServiceClient.processDocument(savedDocument.getFileContent(), originalFilename, fileType);
         } catch (Exception e) {
             savedDocument.setStatus(DocumentStatus.FAILED);
             documentRepository.save(savedDocument);
@@ -150,6 +161,9 @@ public class DocumentService {
         savedDocument.setStatus(DocumentStatus.COMPLETED);
         savedDocument.setCategory(aiResponse.getCategory());
         documentRepository.save(savedDocument);
+
+        // Log the course generation activity
+        activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
 
         return UploadResponse.builder()
                 .documentId(savedDocument.getId())
@@ -189,6 +203,54 @@ public class DocumentService {
         if (!document.getStudentId().equals(studentId)) {
             throw new IllegalArgumentException("Access denied.");
         }
+
+        courseRepository.findByDocumentId(documentId).ifPresent(course -> {
+
+            // ── 1. Delete exam attempt data ──────────────────────────────────────
+            examRepository.findByCourseId(course.getId()).ifPresent(exam -> {
+                List<ExamAttempt> attempts = examAttemptRepository.findByExamId(exam.getId());
+                List<Long> attemptIds = attempts.stream()
+                        .map(ExamAttempt::getId)
+                        .collect(Collectors.toList());
+
+                if (!attemptIds.isEmpty()) {
+                    // Delete leaf rows that reference exam_attempts (strict FK order)
+                    examAnswerRepository.deleteAllByExamAttemptIdIn(attemptIds);
+                    examAttemptQuestionRepository.deleteAllByExamAttemptIdIn(attemptIds);
+                    certificateRepository.deleteAllByExamAttemptIdIn(attemptIds);
+                    suspiciousActivityRepository.deleteAllByExamAttemptIdIn(attemptIds);
+                    examAttemptRepository.deleteAllById(attemptIds);
+                }
+
+                examRepository.deleteById(exam.getId());
+            });
+
+            // ── 2. Pre-delete quiz answer data before JPA cascade removes quiz_attempts ──
+            List<Long> lessonIds = lessonRepository.findByCourseIdOrderByLessonNumberAsc(course.getId())
+                    .stream().map(l -> l.getId()).collect(Collectors.toList());
+
+            if (!lessonIds.isEmpty()) {
+                List<Long> quizIds = quizRepository.findByLessonIdIn(lessonIds)
+                        .stream().map(q -> q.getId()).collect(Collectors.toList());
+
+                if (!quizIds.isEmpty()) {
+                    List<Long> quizAttemptIds = quizAttemptRepository.findByQuizIdIn(quizIds)
+                            .stream().map(qa -> qa.getId()).collect(Collectors.toList());
+
+                    if (!quizAttemptIds.isEmpty()) {
+                        quizAnswerRepository.deleteAllByQuizAttemptIdIn(quizAttemptIds);
+                    }
+                }
+            }
+
+            // ── 3. Delete the course (JPA cascade handles everything else) ───────
+            // course → lessons → flashcards → flashcard_reviews
+            // → quizzes → quiz_questions → quiz_answers (JPA)
+            // → quiz_attempts → quiz_answers (JPA)
+            // → lesson_progress
+            courseRepository.delete(course);
+        });
+
         documentRepository.delete(document);
     }
 

@@ -78,7 +78,7 @@ public class LessonProgressService {
                         lessonProgressRepository.save(currentProgress);
 
                         long minutesElapsed = ChronoUnit.MINUTES.between(
-                                        currentLesson.getCreatedAt(), currentProgress.getCompletedAt());
+                                        attempt.getStartedAt(), currentProgress.getCompletedAt());
                         int timeSpent = (int) Math.min(minutesElapsed, 480);
                         currentProgress.setTimeSpent(timeSpent);
                         lessonProgressRepository.save(currentProgress);

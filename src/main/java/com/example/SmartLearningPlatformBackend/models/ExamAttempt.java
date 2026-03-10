@@ -57,9 +57,13 @@ public class ExamAttempt {
     @JoinColumn(name = "exam_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Exam exam;
 
-    @OneToMany(mappedBy = "examAttempt", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "examAttempt", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ExamAnswer> answers = new ArrayList<>();
+
+    @OneToMany(mappedBy = "examAttempt", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ExamAttemptQuestion> attemptQuestions = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

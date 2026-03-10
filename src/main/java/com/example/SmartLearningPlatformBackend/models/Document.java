@@ -38,8 +38,8 @@ public class Document {
     @Column(name = "file_size", nullable = false)
     private Long fileSize;
 
-    @Column(name = "file_path", nullable = false)
-    private String filePath;
+    @Column(name = "file_content", columnDefinition = "bytea")
+    private byte[] fileContent;
 
     @Column(name = "uploaded_at", nullable = false, updatable = false)
     private LocalDateTime uploadedAt;

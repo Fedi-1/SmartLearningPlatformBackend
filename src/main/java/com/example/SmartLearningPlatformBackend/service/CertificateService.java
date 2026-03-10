@@ -1,6 +1,8 @@
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.certificate.CertificateDTO;
+import com.example.SmartLearningPlatformBackend.enums.ActionType;
+import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import com.example.SmartLearningPlatformBackend.models.Certificate;
 import com.example.SmartLearningPlatformBackend.models.Course;
 import com.example.SmartLearningPlatformBackend.models.User;
@@ -8,13 +10,9 @@ import com.example.SmartLearningPlatformBackend.repository.CertificateRepository
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
 import com.example.SmartLearningPlatformBackend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,14 +26,12 @@ public class CertificateService {
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final AiServiceClient aiServiceClient;
-
-    @Value("${ai.service.uploads-dir}")
-    private String aiServiceUploadsDir;
+    private final ActivityLogService activityLogService;
 
     /** Return all certificates earned by this student. */
     public List<CertificateDTO> getMyCertificates(Long studentId) {
         return certificateRepository.findAllByStudentId(studentId).stream()
-                .filter(c -> !Boolean.TRUE.equals(c.getIsRevoked()))
+                .filter(c -> c.getStatus() != CertificateStatus.REVOKED)
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -43,7 +39,7 @@ public class CertificateService {
     /** Return the certificate for a specific course, if one exists. */
     public CertificateDTO getCourseCertificate(Long studentId, Long courseId) {
         Certificate cert = certificateRepository.findByStudentIdAndCourseId(studentId, courseId)
-                .filter(c -> !Boolean.TRUE.equals(c.getIsRevoked()))
+                .filter(c -> c.getStatus() != CertificateStatus.REVOKED)
                 .orElseThrow(() -> new RuntimeException("No certificate found for this course."));
         return toDTO(cert);
     }
@@ -76,17 +72,18 @@ public class CertificateService {
 
         Map<String, Object> result = aiServiceClient.generateCertificate(payload);
 
-        String pdfPath = (String) result.get("pdfFilePath");
-        if (pdfPath != null) {
-            cert.setPdfFilePath(pdfPath);
+        String pdfBase64 = (String) result.get("pdfContent");
+        if (pdfBase64 != null) {
+            byte[] pdfBytes = Base64.getDecoder().decode(pdfBase64);
+            cert.setPdfContent(pdfBytes);
             certificateRepository.save(cert);
         }
 
         return toDTO(cert);
     }
 
-    /** Read the PDF bytes from disk and return them. */
-    public byte[] downloadPdf(Long certificateId, Long studentId) throws IOException {
+    /** Return the PDF bytes stored in PostgreSQL (authenticated). */
+    public byte[] downloadPdf(Long certificateId, Long studentId) {
         Certificate cert = certificateRepository.findById(certificateId)
                 .orElseThrow(() -> new RuntimeException("Certificate not found."));
 
@@ -94,36 +91,44 @@ public class CertificateService {
             throw new RuntimeException("Access denied.");
         }
 
-        if (cert.getPdfFilePath() == null) {
+        if (cert.getStatus() != CertificateStatus.APPROVED) {
+            throw new IllegalStateException(
+                    cert.getStatus() == CertificateStatus.PENDING
+                            ? "Your certificate is awaiting admin approval."
+                            : "Your certificate has been revoked and cannot be downloaded.");
+        }
+
+        if (cert.getPdfContent() == null) {
             throw new RuntimeException("PDF has not been generated yet. Please generate it first.");
         }
 
-        Path path = resolvePdfPath(cert.getPdfFilePath());
-        if (!Files.exists(path)) {
-            throw new RuntimeException("Certificate PDF file not found on disk.");
-        }
+        activityLogService.log(cert.getStudentId(), ActionType.DOWNLOAD_CERTIFICATE, "Certificate", cert.getId());
 
-        return Files.readAllBytes(path);
+        return cert.getPdfContent();
     }
 
     /**
      * Public download — no ownership check.
      * Used by the browser download link (no JWT header available).
      */
-    public byte[] downloadPdfPublic(Long certificateId) throws IOException {
+    public byte[] downloadPdfPublic(Long certificateId) {
         Certificate cert = certificateRepository.findById(certificateId)
                 .orElseThrow(() -> new RuntimeException("Certificate not found."));
 
-        if (cert.getPdfFilePath() == null) {
+        if (cert.getStatus() != CertificateStatus.APPROVED) {
+            throw new IllegalStateException(
+                    cert.getStatus() == CertificateStatus.PENDING
+                            ? "This certificate is awaiting admin approval."
+                            : "This certificate has been revoked.");
+        }
+
+        if (cert.getPdfContent() == null) {
             throw new RuntimeException("PDF has not been generated yet. Please generate it first.");
         }
 
-        Path path = resolvePdfPath(cert.getPdfFilePath());
-        if (!Files.exists(path)) {
-            throw new RuntimeException("Certificate PDF file not found on disk. Path: " + path);
-        }
+        activityLogService.log(cert.getStudentId(), ActionType.DOWNLOAD_CERTIFICATE, "Certificate", cert.getId());
 
-        return Files.readAllBytes(path);
+        return cert.getPdfContent();
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
@@ -140,19 +145,7 @@ public class CertificateService {
                 .courseTitle(courseTitle)
                 .score(cert.getScore())
                 .issuedAt(cert.getIssuedAt())
-                .hasPdf(cert.getPdfFilePath() != null)
+                .hasPdf(cert.getPdfContent() != null)
                 .build();
-    }
-
-    /**
-     * Resolve a possibly-relative PDF path against the AI service base directory.
-     * FastAPI stores paths like "uploads\certificates\certificate_xxx.pdf" relative
-     * to its own working directory (ai.service.uploads-dir).
-     */
-    private Path resolvePdfPath(String storedPath) {
-        Path p = Paths.get(storedPath);
-        if (p.isAbsolute())
-            return p;
-        return Paths.get(aiServiceUploadsDir).resolve(storedPath).normalize();
     }
 }

@@ -11,6 +11,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -28,6 +29,9 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final JavaMailSender mailSender;
     private final SseService sseService;
+
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
 
     /**
      * Master method — decides which channels to fire based on category.
@@ -70,6 +74,12 @@ public class NotificationService {
 
     @Async
     public void sendEmailNotification(Long userId, String title, String message, String actionUrl) {
+        sendEmailNotification(userId, title, message, actionUrl, null);
+    }
+
+    @Async
+    public void sendEmailNotification(Long userId, String title, String message, String actionUrl,
+            NotificationCategory category) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null || user.getEmail() == null) {
             log.warn("Cannot send email: user {} not found or has no email", userId);
@@ -83,7 +93,11 @@ public class NotificationService {
             helper.setFrom("noreply.learnai@gmail.com");
             helper.setTo(user.getEmail());
             helper.setSubject(title);
-            helper.setText(buildEmailHtml(title, message, actionUrl, user.getFirstName()), true);
+
+            String buttonLabel = (category == NotificationCategory.CERTIFICATE)
+                    ? "Download Certificate"
+                    : "View Details";
+            helper.setText(buildEmailHtml(title, message, actionUrl, user.getFirstName(), buttonLabel), true);
 
             mailSender.send(mimeMessage);
             log.info("Email sent to {} for: {}", user.getEmail(), title);
@@ -151,7 +165,14 @@ public class NotificationService {
                 .readAt(java.time.LocalDateTime.now())
                 .build();
         notificationRepository.save(notification);
-        sendEmailNotification(userId, title, message, actionUrl);
+
+        // CERTIFICATE actionUrl is already a full backend URL — use as-is.
+        // All other categories carry a relative frontend path — prepend the base URL.
+        String emailActionUrl = (category == NotificationCategory.CERTIFICATE || actionUrl == null)
+                ? actionUrl
+                : frontendUrl + actionUrl;
+
+        sendEmailNotification(userId, title, message, emailActionUrl, category);
     }
 
     private NotificationDTO toDTO(Notification n) {
@@ -170,7 +191,8 @@ public class NotificationService {
                 .build();
     }
 
-    private String buildEmailHtml(String title, String message, String actionUrl, String firstName) {
+    private String buildEmailHtml(String title, String message, String actionUrl, String firstName,
+            String buttonLabel) {
         String buttonHtml = "";
         if (actionUrl != null && !actionUrl.isBlank()) {
             buttonHtml = """
@@ -180,10 +202,10 @@ public class NotificationService {
                                 background:#6366F1;color:#ffffff;
                                 text-decoration:none;border-radius:8px;
                                 font-weight:600;font-size:15px;">
-                        View Details
+                        %s
                       </a>
                     </div>
-                    """.formatted(actionUrl);
+                    """.formatted(actionUrl, buttonLabel);
         }
 
         return """

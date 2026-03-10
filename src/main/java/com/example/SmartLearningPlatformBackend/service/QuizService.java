@@ -26,7 +26,6 @@ public class QuizService {
 
         private final QuizRepository quizRepository;
         private final QuizAttemptRepository quizAttemptRepository;
-        private final QuizAttemptQuestionRepository quizAttemptQuestionRepository;
         private final QuizAnswerRepository quizAnswerRepository;
         private final QuizQuestionRepository quizQuestionRepository;
         private final LessonRepository lessonRepository;
@@ -60,7 +59,6 @@ public class QuizService {
                                 .startedAt(LocalDateTime.now())
                                 .build();
                 attempt = quizAttemptRepository.save(attempt);
-                final Long attemptId = attempt.getId();
 
                 // ── Fetch the lesson content for this quiz ────────────────────────
                 Lesson lesson = lessonRepository.findById(quiz.getLessonId())
@@ -68,7 +66,13 @@ public class QuizService {
                                                 "Lesson not found."));
 
                 // ── Call FastAPI to generate 5 fresh questions on demand ──────────
-                List<Map<String, Object>> rawQuestions = aiServiceClient.generateQuizQuestions(lesson.getContent());
+                List<String> previousQuestions = quizQuestionRepository.findByQuizId(quiz.getId())
+                                .stream()
+                                .map(QuizQuestion::getQuestionText)
+                                .collect(Collectors.toList());
+
+                List<Map<String, Object>> rawQuestions = aiServiceClient.generateQuizQuestions(
+                                lesson.getContent(), previousQuestions);
 
                 // ── Persist generated questions and link them to this attempt ─────
                 List<QuizQuestion> savedQuestions = new ArrayList<>();
@@ -98,12 +102,6 @@ public class QuizService {
 
                         QuizQuestion saved = quizQuestionRepository.save(question);
                         savedQuestions.add(saved);
-
-                        // Link question to this attempt via the join table
-                        quizAttemptQuestionRepository.save(QuizAttemptQuestion.builder()
-                                        .quizAttemptId(attemptId)
-                                        .quizQuestionId(saved.getId())
-                                        .build());
                 }
 
                 // Build question DTOs for response
@@ -134,25 +132,17 @@ public class QuizService {
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Quiz not found."));
 
-                // Load the 5 questions generated for this specific attempt via the join table
-                List<Long> questionIds = quizAttemptQuestionRepository.findByQuizAttemptId(attemptId)
-                                .stream()
-                                .map(QuizAttemptQuestion::getQuizQuestionId)
-                                .collect(Collectors.toList());
-                List<QuizQuestion> questions = quizQuestionRepository.findAllById(questionIds);
-
                 // Save answers + accumulate weighted points
-                int totalPoints = questions.stream().mapToInt(QuizQuestion::getPointsWorth).sum();
+                int totalPoints = 0;
                 int earnedPoints = 0;
 
                 for (AnswerRequest ans : request.getAnswers()) {
-                        QuizQuestion question = questions.stream()
-                                        .filter(q -> q.getId().equals(ans.getQuestionId()))
-                                        .findFirst()
+                        QuizQuestion question = quizQuestionRepository.findById(ans.getQuestionId())
                                         .orElseThrow(() -> new ResponseStatusException(
                                                         HttpStatus.BAD_REQUEST,
                                                         "Question not found: " + ans.getQuestionId()));
 
+                        totalPoints += question.getPointsWorth();
                         boolean correct;
                         if (question.getQuestionType() == QuestionType.FILL_BLANK) {
                                 correct = question.getCorrectAnswer().equalsIgnoreCase(ans.getStudentAnswer().trim());
@@ -197,7 +187,7 @@ public class QuizService {
                 boolean attemptsExhausted = attemptsUsed >= quiz.getMaxAttempts();
 
                 LessonProgressResponse progressResponse = triggerProgression(
-                                studentId, quiz, passed, attemptsExhausted);
+                                studentId, quiz, passed, attemptsExhausted, attempt.getStartedAt());
 
                 return SubmitQuizResponse.builder()
                                 .attemptId(attemptId)
@@ -290,7 +280,8 @@ public class QuizService {
         // ─── Lesson progression ──────────────────────────────────────────────────
 
         private LessonProgressResponse triggerProgression(
-                        Long studentId, Quiz quiz, boolean passed, boolean attemptsExhausted) {
+                        Long studentId, Quiz quiz, boolean passed, boolean attemptsExhausted,
+                        LocalDateTime attemptStartedAt) {
 
                 Lesson lesson = lessonRepository.findById(quiz.getLessonId()).orElse(null);
                 if (lesson == null)
@@ -309,7 +300,7 @@ public class QuizService {
                         lessonProgressRepository.save(currentProgress);
 
                         long minutesElapsed = ChronoUnit.MINUTES.between(
-                                        lesson.getCreatedAt(), currentProgress.getCompletedAt());
+                                        attemptStartedAt, currentProgress.getCompletedAt());
                         int timeSpent = (int) Math.min(minutesElapsed, 480);
                         currentProgress.setTimeSpent(timeSpent);
                         lessonProgressRepository.save(currentProgress);

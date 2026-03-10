@@ -23,4 +23,12 @@ public class ExamAttemptQuestion {
 
     @Column(name = "exam_question_id", nullable = false)
     private Long examQuestionId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_attempt_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private ExamAttempt examAttempt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_question_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private ExamQuestion examQuestion;
 }
