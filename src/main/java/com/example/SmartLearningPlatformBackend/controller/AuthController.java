@@ -109,4 +109,17 @@ public class AuthController {
                     .body(Map.of("message", e.getMessage()));
         }
     }
+
+    // ─── Validate reset token ──────────────────────────────────────────────────
+
+    @GetMapping("/validate-reset-token")
+    public ResponseEntity<?> validateResetToken(@RequestParam String token) {
+        try {
+            authService.validateResetToken(token);
+            return ResponseEntity.ok(Map.of("message", "Token is valid."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
 }

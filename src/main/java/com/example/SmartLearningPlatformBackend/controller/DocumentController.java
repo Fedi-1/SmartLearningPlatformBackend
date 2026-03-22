@@ -5,13 +5,16 @@ import com.example.SmartLearningPlatformBackend.dto.document.UploadResponse;
 import com.example.SmartLearningPlatformBackend.models.Student;
 import com.example.SmartLearningPlatformBackend.models.UserDetailsImpl;
 import com.example.SmartLearningPlatformBackend.service.DocumentService;
+import com.example.SmartLearningPlatformBackend.exception.DuplicateDocumentException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -45,5 +48,12 @@ public class DocumentController {
 
         documentService.softDeleteDocument(id, principal.getUser().getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(DuplicateDocumentException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateDocumentException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("message", ex.getMessage()));
     }
 }

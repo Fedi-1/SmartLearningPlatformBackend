@@ -146,6 +146,7 @@ public class CertificateService {
                 .score(cert.getScore())
                 .issuedAt(cert.getIssuedAt())
                 .hasPdf(cert.getPdfContent() != null)
+                .status(cert.getStatus() != null ? cert.getStatus().name() : null)
                 .build();
     }
 }

@@ -180,4 +180,15 @@ public class AuthService {
                 user.setResetTokenExpiry(null);
                 userRepository.save(user);
         }
+
+        // ─── Validate reset token ─────────────────────────────────────────────────
+
+        public void validateResetToken(String token) {
+                var user = userRepository.findByResetToken(token)
+                                .orElseThrow(() -> new RuntimeException("Invalid or expired reset token."));
+
+                if (user.getResetTokenExpiry() == null || LocalDateTime.now().isAfter(user.getResetTokenExpiry())) {
+                        throw new RuntimeException("Reset link has expired.");
+                }
+        }
 }

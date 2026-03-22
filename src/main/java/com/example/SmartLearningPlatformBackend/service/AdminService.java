@@ -54,6 +54,13 @@ public class AdminService {
         private final NotificationService notificationService;
         private final SuspiciousActivityRepository suspiciousActivityRepository;
         private final PasswordEncoder passwordEncoder;
+        private final CertificateService certificateService;
+
+        @org.springframework.beans.factory.annotation.Value("${backend.base-url:http://localhost:8069}")
+        private String backendBaseUrl;
+
+        @org.springframework.beans.factory.annotation.Value("${frontend.base-url:http://localhost:4200}")
+        private String frontendBaseUrl;
 
         @Transactional(readOnly = true)
         public AdminStatsResponse getStats() {
@@ -290,8 +297,16 @@ public class AdminService {
                 }
                 cert.setStatus(CertificateStatus.APPROVED);
                 certificateRepository.save(cert);
+
+                // Automatically generate PDF directly upon approval so the download link is
+                // instantly valid
+                certificateService.generatePdf(cert.getId(), cert.getStudentId());
+
                 String courseTitle = courseRepository.findById(cert.getCourseId())
                                 .map(Course::getTitle).orElse("your course");
+
+                String actionUrl = backendBaseUrl + "/api/certificates/" + cert.getCertificateUuid()+ "/download";
+
                 notificationService.notify(
                                 cert.getStudentId(),
                                 NotificationCategory.CERTIFICATE,
@@ -299,7 +314,7 @@ public class AdminService {
                                 String.format("Your certificate for \"%s\" has been approved. You can now generate and download it.",
                                                 courseTitle),
                                 cert.getId(),
-                                "/dashboard/courses/" + cert.getCourseId());
+                                actionUrl);
         }
 
         @Transactional
@@ -314,6 +329,9 @@ public class AdminService {
                 certificateRepository.save(cert);
                 String courseTitle = courseRepository.findById(cert.getCourseId())
                                 .map(Course::getTitle).orElse("your course");
+
+                String actionUrl = frontendBaseUrl + "/dashboard/courses/" + cert.getCourseId();
+
                 notificationService.notify(
                                 cert.getStudentId(),
                                 NotificationCategory.CERTIFICATE,
@@ -323,7 +341,7 @@ public class AdminService {
                                                                 + "Focus on honest learning and try again.",
                                                 courseTitle),
                                 cert.getId(),
-                                null);
+                                actionUrl);
         }
 
         // ── All Certificates (admin list) ─────────────────────────────────────────

@@ -15,4 +15,5 @@ public class CertificateDTO {
     private Integer score;
     private LocalDateTime issuedAt;
     private boolean hasPdf;
+    private String status;
 }

@@ -12,6 +12,7 @@ import com.example.SmartLearningPlatformBackend.models.Course;
 import com.example.SmartLearningPlatformBackend.models.Document;
 import com.example.SmartLearningPlatformBackend.models.ExamAttempt;
 import com.example.SmartLearningPlatformBackend.models.Student;
+import com.example.SmartLearningPlatformBackend.exception.DuplicateDocumentException;
 import com.example.SmartLearningPlatformBackend.repository.CertificateRepository;
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
 import com.example.SmartLearningPlatformBackend.repository.DocumentRepository;
@@ -86,6 +87,18 @@ public class DocumentService {
             throw new RuntimeException("Failed to read file bytes: " + e.getMessage());
         }
         String fileHash = HashingUtil.computeSHA256(fileBytes);
+
+        if (documentRepository.existsByStudentIdAndFileHashAndStatusNot(student.getId(), fileHash,
+                DocumentStatus.FAILED)) {
+            throw new DuplicateDocumentException("You have already uploaded this document.");
+        }
+
+        documentRepository.findByStudentIdAndFileHash(student.getId(), fileHash)
+                .ifPresent(existing -> {
+                    if (DocumentStatus.FAILED.equals(existing.getStatus())) {
+                        documentRepository.delete(existing);
+                    }
+                });
 
         // 3. Persist Document with file bytes and PROCESSING status
         Document document = Document.builder()
