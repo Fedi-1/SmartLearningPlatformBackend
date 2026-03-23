@@ -32,5 +32,6 @@ build/
 ### VS Code ###
 .vscode/
 
-### Project-specific ###
-src/main/java/com/example/SmartLearningPlatformBackend/business_layer/
+# Environment secrets
+.env
+*.env
