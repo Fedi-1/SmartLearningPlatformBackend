@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 public class LessonProgressResponse {
@@ -16,4 +18,7 @@ public class LessonProgressResponse {
     private boolean isLocked;
     @JsonProperty("quizPassed")
     private boolean quizPassed;
+    private Integer timeSpent;
+    private LocalDateTime lastAccessedAt;
+    private Long nextLessonId;
 }

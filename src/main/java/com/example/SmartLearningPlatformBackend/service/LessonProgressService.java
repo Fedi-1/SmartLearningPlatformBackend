@@ -137,7 +137,15 @@ public class LessonProgressService {
                                 .findByStudentIdAndLessonId(studentId, lessonId)
                                 .orElseThrow(() -> new IllegalArgumentException("Lesson progress not found."));
 
-                return toResponse(progress);
+                Lesson lesson = lessonRepository.findById(lessonId)
+                                .orElseThrow(() -> new IllegalArgumentException("Lesson not found."));
+
+                Long nextLessonId = lessonRepository
+                                .findByCourseIdAndLessonNumber(lesson.getCourseId(), lesson.getLessonNumber() + 1)
+                                .map(Lesson::getId)
+                                .orElse(null);
+
+                return toResponse(progress, nextLessonId);
         }
 
         // -------------------------------------------------------------------------
@@ -220,12 +228,19 @@ public class LessonProgressService {
         }
 
         private LessonProgressResponse toResponse(LessonProgress p) {
+                return toResponse(p, null);
+        }
+
+        private LessonProgressResponse toResponse(LessonProgress p, Long nextLessonId) {
                 return LessonProgressResponse.builder()
                                 .id(p.getId())
                                 .lessonId(p.getLessonId())
                                 .isCompleted(Boolean.TRUE.equals(p.getIsCompleted()))
                                 .isLocked(Boolean.TRUE.equals(p.getIsLocked()))
                                 .quizPassed(Boolean.TRUE.equals(p.getQuizPassed()))
+                                .timeSpent(p.getTimeSpent())
+                                .lastAccessedAt(p.getLastAccessedAt())
+                                .nextLessonId(nextLessonId)
                                 .build();
         }
 }

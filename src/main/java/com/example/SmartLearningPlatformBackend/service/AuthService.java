@@ -14,6 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -104,6 +105,7 @@ public class AuthService {
 
         // ─── Verify email ─────────────────────────────────────────────────────────
 
+        @Transactional
         public void verifyEmail(String token) {
                 var user = userRepository.findByVerificationToken(token)
                                 .orElseThrow(() -> new RuntimeException("Invalid or expired verification token."));
@@ -115,9 +117,14 @@ public class AuthService {
 
         // ─── Resend verification email ────────────────────────────────────────────
 
+        @Transactional
         public void resendVerificationEmail(String email) {
-                var user = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new RuntimeException("No account found with this email."));
+                var userOpt = userRepository.findByEmail(email);
+                if (userOpt.isEmpty()) {
+                        // Do not leak whether the email exists (security best practice)
+                        return;
+                }
+                var user = userOpt.get();
 
                 if (Boolean.TRUE.equals(user.getIsVerified())) {
                         throw new RuntimeException("Account is already verified.");
@@ -148,25 +155,31 @@ public class AuthService {
 
         // ─── Forgot password ──────────────────────────────────────────────────────
 
+        @Transactional
         public void forgotPassword(String email) {
-                var user = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new RuntimeException("No account found with this email."));
+                var userOpt = userRepository.findByEmail(email);
+                if (userOpt.isEmpty()) {
+                        // Do not leak whether the email exists (security best practice)
+                        return;
+                }
+                var user = userOpt.get();
 
                 String resetToken = UUID.randomUUID().toString();
                 user.setResetToken(resetToken);
-                user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(15));
+                user.setResetTokenExpiry(LocalDateTime.now().plusHours(24));
                 userRepository.save(user);
 
                 String resetLink = "http://localhost:4200/reset-password?token=" + resetToken;
                 notificationService.sendEmailNotification(
                                 user.getId(),
                                 "Reset your LearnAI password",
-                                "Click the button below to reset your password. This link expires in 15 minutes.",
+                                "Click the button below to reset your password. This link expires in 24 hours.",
                                 resetLink);
         }
 
         // ─── Reset password ───────────────────────────────────────────────────────
 
+        @Transactional
         public void resetPassword(String token, String newPassword) {
                 var user = userRepository.findByResetToken(token)
                                 .orElseThrow(() -> new RuntimeException("Invalid or expired reset token."));
