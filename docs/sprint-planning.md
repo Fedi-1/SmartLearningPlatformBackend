@@ -1,8 +1,8 @@
 # LearnAI — Sprint Planning Document
 
 > **Project:** LearnAI — Smart Learning Platform  
-> **Total User Stories:** 65 (US-01 → US-65)  
-> **Total Story Points:** 227 (functional) + 13 (testing / deployment)  
+> **Total User Stories:** 25 (US-01 → US-25)  
+> **Total Story Points:** 202  
 > **Total Sprints:** 5  
 > **Total Duration:** ~11 weeks
 
@@ -53,25 +53,17 @@
 
 | ID | User Story | Story Points | Status |
 |----|------------|:------------:|:------:|
-| US-01 | Register a new student account (name, email, password, DOB, phone) | 5 | ✅ Done |
-| US-02 | Verify email address via verification link | 3 | ✅ Done |
-| US-03 | Request a new verification email (rate-limited) | 2 | ✅ Done |
-| US-04 | Log in with email & password and receive a JWT token | 3 | ✅ Done |
-| US-05 | Request a password-reset email | 3 | ✅ Done |
-| US-06 | Validate reset token and submit a new password | 3 | ✅ Done |
-| US-07 | View and update student profile (name, DOB, phone) | 2 | ✅ Done |
-| US-08 | Change password (requires current-password verification) | 2 | ✅ Done |
-| US-09 | Admin: view and update admin profile + change password | 2 | ✅ Done |
-| US-10 | Upload a document (PDF, DOCX, PPTX, JPG, PNG, WEBP ≤ 10 MB) | 5 | ✅ Done |
-| US-11 | Detect duplicate document via SHA-256 hash comparison | 3 | ✅ Done |
-| US-12 | View list of all uploaded documents | 2 | ✅ Done |
-| US-13 | Delete a document (hard delete including associated course) | 3 | ✅ Done |
+| US-01 | Student account registration and email verification | 8 | ✅ Done |
+| US-02 | Login with JWT and full password-reset flow | 8 | ✅ Done |
+| US-03 | Profile management and password change (student & admin) | 5 | ✅ Done |
+| US-04 | Document upload with format/size validation and SHA-256 duplicate detection | 8 | ✅ Done |
+| US-05 | Document listing and hard-delete with full course cascade | 5 | ✅ Done |
 
-**Sprint 1 Total: 38 story points**
+**Sprint 1 Total: 34 story points**
 
 ### Sprint Review
 
-All authentication endpoints (`/api/auth/*`) and document management endpoints (`/api/documents/*`) were delivered and tested. Students can self-register, verify their email, recover their password, maintain their profile, and upload learning material. Duplicate detection using SHA-256 prevents redundant AI processing. The document delete operation correctly removes the document and the entire associated course cascade.
+All authentication endpoints (`/api/auth/*`) and document management endpoints (`/api/documents/*`) were delivered and tested. Students can self-register, verify their email, recover their password, maintain their profile, and upload learning material. SHA-256 duplicate detection prevents redundant AI processing. Document deletion correctly cascades to the entire associated course.
 
 ### Sprint Retrospective
 
@@ -84,29 +76,23 @@ All authentication endpoints (`/api/auth/*`) and document management endpoints (
 ## SPRINT 2 — AI Core
 
 > **Duration:** 3 weeks  
-> **Sprint Goal:** Integrate the FastAPI AI microservice so that uploaded documents are transformed into fully structured courses with lessons, flashcards, quizzes, and a working course-viewer with lesson-progress tracking.
+> **Sprint Goal:** Integrate the FastAPI AI microservice so that uploaded documents are transformed into fully structured courses with lessons, flashcards, quizzes, recap media, and a working course viewer with lesson-progress tracking.
 
 ### Sprint Backlog
 
 | ID | User Story | Story Points | Status |
 |----|------------|:------------:|:------:|
-| US-14 | AI-powered course generation from uploaded document (title, category, description) | 8 | ✅ Done |
-| US-15 | AI-powered lesson generation (content, summary, estimated reading time) | 8 | ✅ Done |
-| US-16 | AI-powered flashcard generation with difficulty levels per lesson | 5 | ✅ Done |
-| US-17 | AI-powered quiz generation — questions generated fresh by AI on each attempt | 5 | ✅ Done |
-| US-18 | Trigger AI recap image / video generation for a lesson | 5 | ✅ Done |
-| US-19 | View full course details (lessons, quizzes, flashcards) | 3 | ✅ Done |
-| US-20 | View lesson progress across an entire course | 3 | ✅ Done |
-| US-21 | Record lesson access timestamp | 2 | ✅ Done |
-| US-22 | View detailed progress for a specific lesson | 2 | ✅ Done |
-| US-23 | Auto-unlock next lesson after quiz pass or attempt exhaustion | 5 | ✅ Done |
-| US-24 | View overall learning dashboard (global %, per-course metrics) | 5 | ✅ Done |
+| US-06 | AI-powered course and lesson generation from uploaded document | 13 | ✅ Done |
+| US-07 | AI-powered flashcard and quiz generation per lesson | 8 | ✅ Done |
+| US-08 | AI lesson recap generation (ElevenLabs audio + Remotion video) | 5 | ✅ Done |
+| US-09 | Course viewer with full content and lesson access recording | 5 | ✅ Done |
+| US-10 | Lesson-level progress tracking, sequential lesson unlock, and learning dashboard | 13 | ✅ Done |
 
-**Sprint 2 Total: 51 story points**
+**Sprint 2 Total: 44 story points**
 
 ### Sprint Review
 
-The AI microservice (FastAPI + Groq Llama 3.3 70B) was integrated end-to-end. A single document upload now triggers asynchronous course generation producing lessons, flashcards, and quizzes. The `CourseService.generateAndSave()` pipeline persists all generated content. Lesson-progress tracking, sequential unlocking, and the student dashboard are fully operational. The recap feature streams ElevenLabs audio and Remotion-rendered video with HTTP range-request support.
+The AI microservice (FastAPI + Groq Llama 3.3 70B) was integrated end-to-end. A single document upload now triggers asynchronous course generation producing lessons, flashcards, and quizzes. Lesson-progress tracking, sequential unlocking, and the student dashboard are fully operational. The recap feature streams ElevenLabs audio and Remotion-rendered video with HTTP range-request support.
 
 ### Sprint Retrospective
 
@@ -125,31 +111,22 @@ The AI microservice (FastAPI + Groq Llama 3.3 70B) was integrated end-to-end. A 
 
 | ID | User Story | Story Points | Status |
 |----|------------|:------------:|:------:|
-| US-25 | Start a new quiz attempt — fresh AI-generated questions each time | 5 | ✅ Done |
-| US-26 | Submit quiz answers and receive score, pass/fail, per-question explanations | 5 | ✅ Done |
-| US-27 | Abandon a quiz attempt | 2 | ✅ Done |
-| US-28 | View all past quiz attempts for a lesson | 2 | ✅ Done |
-| US-29 | Start a daily SM-2 flashcard review session (due cards only) | 5 | ✅ Done |
-| US-30 | Rate a flashcard AGAIN / GOOD / EASY (SM-2 interval update) | 5 | ✅ Done |
-| US-31 | Generate a final exam (AI, 45 questions, one per course) | 8 | ✅ Done |
-| US-32 | View existing final exam details before starting | 2 | ✅ Done |
-| US-33 | Start a final exam attempt (max 3 attempts, 50-minute timer) | 5 | ✅ Done |
-| US-34 | Submit exam answers — receive score, pass/fail, trigger certificate creation | 5 | ✅ Done |
-| US-35 | Abandon an exam attempt | 2 | ✅ Done |
-| US-36 | View all past exam attempts for a course | 2 | ✅ Done |
-| US-37 | Report suspicious exam activity (tab-switch, copy-paste, right-click, timing) | 5 | ✅ Done |
-| US-38 | Admin: view suspicious activity log and flagged exam attempts | 3 | ✅ Done |
+| US-11 | Quiz attempt lifecycle — start, submit (scored), abandon, view history | 13 | ✅ Done |
+| US-12 | SM-2 flashcard review — daily session and card rating | 8 | ✅ Done |
+| US-13 | Final exam generation (AI, 45 questions, cached per course) and pre-attempt view | 8 | ✅ Done |
+| US-14 | Exam attempt lifecycle — start (timed), submit, abandon, view history | 13 | ✅ Done |
+| US-15 | Anti-cheat activity reporting and admin oversight of flagged attempts | 8 | ✅ Done |
 
-**Sprint 3 Total: 56 story points**
+**Sprint 3 Total: 50 story points**
 
 ### Sprint Review
 
-The full assessment pipeline is live. Quizzes generate brand-new AI questions on every attempt, passing previous questions to avoid repetition. The SM-2 flashcard scheduler correctly adjusts intervals for each rating. The 45-question AI-generated final exam is cached per course (no duplicate generation). The anti-cheat module upserts suspicious activity records and surfaces flagged attempts in the admin panel.
+The full assessment pipeline is live. Quizzes generate brand-new AI questions on every attempt, passing previous questions to avoid repetition. The SM-2 flashcard scheduler correctly adjusts intervals per rating. The 45-question AI-generated final exam is cached per course. The anti-cheat module upserts suspicious activity records and surfaces flagged attempts in the admin panel.
 
 ### Sprint Retrospective
 
 - ✅ **What went well:** The SM-2 algorithm was encapsulated in a single method, making the three rating branches (AGAIN / GOOD / EASY) easy to unit-test with deterministic inputs and expected intervals.
-- ✅ **What went well:** Using `previousQuestions` as a deduplication hint to the AI service on quiz-attempt start eliminated repeated questions across attempts without requiring any complex question-pool management.
+- ✅ **What went well:** Using `previousQuestions` as a deduplication hint to the AI service on quiz-attempt start eliminated repeated questions across attempts without any complex question-pool management.
 - ✅ **What went well:** The upsert pattern for suspicious activities (`SuspiciousActivityRepository`) kept the anti-cheat data tidy (one record per activity type per attempt) and made admin queries simple.
 
 ---
@@ -163,30 +140,13 @@ The full assessment pipeline is live. Quizzes generate brand-new AI questions on
 
 | ID | User Story | Story Points | Status |
 |----|------------|:------------:|:------:|
-| US-39 | Auto-create certificate (status PENDING) when exam is passed | 5 | ✅ Done |
-| US-40 | Student: view all own certificates | 2 | ✅ Done |
-| US-41 | Request AI-generated certificate PDF (base64 → BYTEA) | 5 | ✅ Done |
-| US-42 | Download certificate PDF by public UUID (no auth required) | 3 | ✅ Done |
-| US-43 | Admin: approve or revoke a certificate | 3 | ✅ Done |
-| US-44 | Public certificate authenticity verification by UUID | 2 | ✅ Done |
-| US-45 | Subscribe to real-time in-app notifications via SSE | 5 | ✅ Done |
-| US-46 | View full notification history | 2 | ✅ Done |
-| US-47 | View unread notification count | 1 | ✅ Done |
-| US-48 | Mark a notification as read | 1 | ✅ Done |
-| US-49 | Receive email notifications for course completion, exam results, certificate changes | 5 | ✅ Done |
-| US-50 | Admin: view platform-wide statistics (students, courses, pass rate, etc.) | 3 | ✅ Done |
-| US-51 | Admin: view activity chart for the last N days | 3 | ✅ Done |
-| US-52 | Admin: view course category distribution | 2 | ✅ Done |
-| US-53 | Admin: view recent platform activity entries | 2 | ✅ Done |
-| US-54 | Admin: view all students with summary metrics | 3 | ✅ Done |
-| US-55 | Admin: view detailed student info (courses, certs, attempts, suspicious counts) | 5 | ✅ Done |
-| US-56 | Admin: enable / disable a student account | 3 | ✅ Done |
-| US-57 | Admin: view all exam attempts with suspicious activity counts | 3 | ✅ Done |
-| US-58 | Admin: view all certificates with approval status | 3 | ✅ Done |
-| US-59 | Admin: browse paginated activity logs with filters | 3 | ✅ Done |
-| US-60 | Admin: view a specific student's exam attempts | 2 | ✅ Done |
+| US-16 | Certificate lifecycle — auto-creation on exam pass, student listing, admin approval/revocation | 8 | ✅ Done |
+| US-17 | Certificate PDF generation, public download by UUID, and authenticity verification | 8 | ✅ Done |
+| US-18 | Notification system — real-time SSE in-app notifications and async email notifications | 13 | ✅ Done |
+| US-19 | Admin statistics dashboard — KPIs, activity chart, category distribution, recent activity | 8 | ✅ Done |
+| US-20 | Admin student and exam management — list, details, toggle-active, certificates, audit logs | 13 | ✅ Done |
 
-**Sprint 4 Total: 66 story points**
+**Sprint 4 Total: 50 story points**
 
 ### Sprint Review
 
@@ -203,36 +163,23 @@ The certificate lifecycle (auto-creation → PDF generation → admin approval �
 ## SPRINT 5 — Polish & Testing
 
 > **Duration:** 2 weeks  
-> **Sprint Goal:** Complete the landing page, deliver the chatbot feature for both visitors and authenticated students, then close out the project with full regression testing, bug fixing, and deployment preparation.
+> **Sprint Goal:** Complete the landing page and chatbot features, close out the project with full regression testing, and prepare the application for production deployment.
 
 ### Sprint Backlog
 
-#### Functional Stories
-
 | ID | User Story | Story Points | Status |
 |----|------------|:------------:|:------:|
-| US-61 | Visitor chatbot via public `/api/chat` endpoint (no auth required) | 3 | ✅ Done |
-| US-62 | Landing page — hero section with registration call-to-action | 3 | ✅ Done |
-| US-63 | Landing page — smooth scroll-based animations | 2 | ✅ Done |
-| US-64 | Landing page — multi-section layout (features, how-it-works, testimonials, footer) | 3 | ✅ Done |
-| US-65 | Student chatbot with lesson context (JWT-protected, lesson-aware AI response) | 5 | ✅ Done |
+| US-21 | Public visitor chatbot via `permitAll()` `/api/chat` endpoint | 3 | ✅ Done |
+| US-22 | Authenticated student chatbot with lesson context (JWT-protected) | 5 | ✅ Done |
+| US-23 | Landing page — hero, features, how-it-works, testimonials, footer with scroll animations | 8 | ✅ Done |
+| US-24 | Unit testing (JUnit 5 + Mockito) and API regression testing (Postman) | 5 | ✅ Done |
+| US-25 | Deployment preparation — environment configuration and production readiness | 3 | ✅ Done |
 
-#### Non-Functional / Quality Tasks
-
-| Task | Description | Points | Status |
-|------|-------------|:------:|:------:|
-| TEST-01 | Write and run JUnit 5 + Mockito unit tests for all service-layer methods | 5 | ✅ Done |
-| TEST-02 | Postman collection: full API regression run across all 65 stories | 3 | ✅ Done |
-| DEPLOY-01 | Finalise environment configuration (application.yml, env variables) and deployment prep | 2 | ✅ Done |
-| DOC-01 | Complete `docs/product-backlog.md` and `docs/sprint-planning.md` | 3 | ✅ Done |
-
-**Sprint 5 Total (functional): 16 story points**  
-**Sprint 5 Total (quality tasks): 13 story points**  
-**Sprint 5 Grand Total: 29 story points**
+**Sprint 5 Total: 24 story points**
 
 ### Sprint Review
 
-The Angular 18 landing page is complete with a hero section, scroll-triggered animations, and multi-section layout. The chatbot feature is available to both unauthenticated visitors (public `/api/chat`) and authenticated students (lesson-context-aware responses). Unit tests covering service-layer business logic were authored with JUnit 5 and Mockito. A Postman collection was used to run a full API regression pass. The project is ready for deployment.
+The Angular 18 landing page is complete with a hero section, scroll-triggered animations, and multi-section layout. The chatbot is available to both unauthenticated visitors (public `/api/chat`) and authenticated students (lesson-context-aware responses). Unit tests covering service-layer business logic were authored with JUnit 5 and Mockito. A Postman collection validated all 25 user stories. The project is ready for deployment.
 
 ### Sprint Retrospective
 
@@ -246,13 +193,12 @@ The Angular 18 landing page is complete with a hero section, scroll-triggered an
 
 | Sprint | Theme | Duration | Story Points | Cumulative |
 |--------|-------|:--------:|:------------:|:----------:|
-| Sprint 1 | Foundation | 2 weeks | 38 | 38 |
-| Sprint 2 | AI Core | 3 weeks | 51 | 89 |
-| Sprint 3 | Assessment | 2 weeks | 56 | 145 |
-| Sprint 4 | Certificates & Admin | 2 weeks | 66 | 211 |
-| Sprint 5 | Polish & Testing | 2 weeks | 29 | 240 |
-| **Total** | | **11 weeks** | **240** | |
+| Sprint 1 | Foundation | 2 weeks | 34 | 34 |
+| Sprint 2 | AI Core | 3 weeks | 44 | 78 |
+| Sprint 3 | Assessment | 2 weeks | 50 | 128 |
+| Sprint 4 | Certificates & Admin | 2 weeks | 50 | 178 |
+| Sprint 5 | Polish & Testing | 2 weeks | 24 | 202 |
+| **Total** | | **11 weeks** | **202** | |
 
-> **Functional story points:** 227 (US-01 → US-65)  
-> **Quality / non-functional task points:** 13 (tests, deployment, documentation)  
-> **Grand total:** 240 story points
+> **Total user stories:** 25 (US-01 → US-25)  
+> **Total story points:** 202
