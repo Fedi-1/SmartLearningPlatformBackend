@@ -25,27 +25,6 @@ public class LessonRecapController {
     @Value("${ai.service.uploads-dir:}")
     private String aiServiceUploadsDir;
 
-    // ── PNG recap card ────────────────────────────────────────────────────────
-
-    @GetMapping("/recap-image")
-    public ResponseEntity<byte[]> getRecapImage(@RequestParam String path) {
-        File file = resolveFile(path, "/recap-cards/");
-        if (file == null)
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        if (!file.exists())
-            return ResponseEntity.notFound().build();
-
-        try {
-            byte[] bytes = Files.readAllBytes(file.toPath());
-            return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_PNG)
-                    .contentLength(bytes.length)
-                    .body(bytes);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
     // ── MP4 recap video (with HTTP range support for browser playback) ────────
 
     @GetMapping("/recap-video")
