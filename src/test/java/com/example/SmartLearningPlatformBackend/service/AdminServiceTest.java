@@ -10,7 +10,6 @@ import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import com.example.SmartLearningPlatformBackend.models.Certificate;
 import com.example.SmartLearningPlatformBackend.models.Course;
 import com.example.SmartLearningPlatformBackend.models.Student;
-import com.example.SmartLearningPlatformBackend.models.User;
 import com.example.SmartLearningPlatformBackend.repository.ActivityLogRepository;
 import com.example.SmartLearningPlatformBackend.repository.CertificateRepository;
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
