@@ -27,6 +27,7 @@ public class DashboardResponse {
         private int averageQuizScore;
         private int flashcardsDueToday;
         private int totalFlashcards;
+        private int totalStudyMinutes;
     }
 
     @Data

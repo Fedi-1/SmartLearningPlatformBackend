@@ -27,6 +27,7 @@ public class DashboardService {
         private final ExamRepository examRepository;
         private final ExamAttemptRepository examAttemptRepository;
         private final ActivityLogRepository activityLogRepository;
+        private final StudySessionService studySessionService;
 
         @Transactional(readOnly = true)
         public DashboardResponse getDashboardData(Long studentId) {
@@ -179,6 +180,7 @@ public class DashboardService {
                                 .averageQuizScore(averageScore)
                                 .flashcardsDueToday(flashcardsDueToday)
                                 .totalFlashcards(totalFlashcards)
+                                .totalStudyMinutes(studySessionService.getTotalStudyMinutes(studentId))
                                 .build();
 
                 return DashboardResponse.builder()
