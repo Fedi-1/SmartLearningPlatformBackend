@@ -66,6 +66,10 @@ public class AuthController {
             authService.verifyEmail(token);
             return ResponseEntity.ok(Map.of("message", "Email verified successfully. You can now log in."));
         } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("expired")) {
+                return ResponseEntity.status(HttpStatus.GONE)
+                        .body(Map.of("message", e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", e.getMessage()));
         }

@@ -126,7 +126,11 @@ public class DocumentService {
             log.info("Hash match found for document {} — cloning course from document {}",
                     savedDocument.getId(), existingDocument.getId());
 
-            Optional<Course> existingCourseOpt = courseRepository.findByDocumentId(existingDocument.getId());
+            Optional<Course> existingCourseOpt = courseRepository
+                    .findByDocumentIdAndStudentIdOrderByIdDesc(existingDocument.getId(),
+                            existingDocument.getStudentId())
+                    .stream()
+                    .findFirst();
 
             if (existingCourseOpt.isPresent()) {
                 // Clone the existing course for this student
@@ -192,7 +196,10 @@ public class DocumentService {
         return documentRepository.findByStudentId(studentId)
                 .stream()
                 .map(doc -> {
-                    Optional<Course> course = courseRepository.findByDocumentId(doc.getId());
+                    Optional<Course> course = courseRepository
+                            .findByDocumentIdAndStudentIdOrderByIdDesc(doc.getId(), studentId)
+                            .stream()
+                            .findFirst();
                     return DocumentResponse.builder()
                             .id(doc.getId())
                             .fileName(doc.getFileName())
@@ -217,7 +224,7 @@ public class DocumentService {
             throw new IllegalArgumentException("Access denied.");
         }
 
-        courseRepository.findByDocumentId(documentId).ifPresent(course -> {
+        courseRepository.findByDocumentIdAndStudentIdOrderByIdDesc(documentId, studentId).forEach(course -> {
 
             // ── 1. Delete exam attempt data ──────────────────────────────────────
             examRepository.findByCourseId(course.getId()).ifPresent(exam -> {

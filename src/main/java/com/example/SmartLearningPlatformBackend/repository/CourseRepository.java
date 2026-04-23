@@ -13,6 +13,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     Optional<Course> findByDocumentId(Long documentId);
 
+    List<Course> findByDocumentIdOrderByIdDesc(Long documentId);
+
+    List<Course> findByDocumentIdAndStudentIdOrderByIdDesc(Long documentId, Long studentId);
+
     List<Course> findByStudentId(Long studentId);
 
     @Query("SELECT c.category, COUNT(c) FROM Course c WHERE c.category IS NOT NULL GROUP BY c.category ORDER BY COUNT(c) DESC")

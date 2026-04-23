@@ -22,6 +22,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
+        private static final long VERIFICATION_TOKEN_VALIDITY_HOURS = 24;
+
         private final UserRepository userRepository;
         private final PasswordEncoder passwordEncoder;
         private final JwtService jwtService;
@@ -46,6 +48,8 @@ public class AuthService {
                                 .isActive(true)
                                 .isVerified(false)
                                 .verificationToken(verificationToken)
+                                .verificationTokenExpiry(
+                                                LocalDateTime.now().plusHours(VERIFICATION_TOKEN_VALIDITY_HOURS))
                                 .lastVerificationEmailSent(LocalDateTime.now())
                                 .dateOfBirth(request.getDateOfBirth())
                                 .phoneNumber(request.getPhoneNumber())
@@ -57,7 +61,7 @@ public class AuthService {
                 notificationService.sendEmailNotification(
                                 saved.getId(),
                                 "Verify your LearnAI account",
-                                "Click the button below to verify your account. This link does not expire.",
+                                "Click the button below to verify your account. This link expires in 24 hours.",
                                 verificationLink);
 
                 return AuthResponse.builder()
@@ -106,10 +110,20 @@ public class AuthService {
 
         public void verifyEmail(String token) {
                 var user = userRepository.findByVerificationToken(token)
-                                .orElseThrow(() -> new RuntimeException("Invalid or expired verification token."));
+                                .orElseThrow(() -> new RuntimeException("Invalid verification token."));
+
+                if (user.getVerificationTokenExpiry() == null
+                                || LocalDateTime.now().isAfter(user.getVerificationTokenExpiry())) {
+                        user.setVerificationToken(null);
+                        user.setVerificationTokenExpiry(null);
+                        userRepository.save(user);
+                        throw new RuntimeException(
+                                        "Verification link has expired. Please request a new verification email.");
+                }
 
                 user.setIsVerified(true);
                 user.setVerificationToken(null);
+                user.setVerificationTokenExpiry(null);
                 userRepository.save(user);
         }
 
@@ -135,6 +149,7 @@ public class AuthService {
 
                 String verificationToken = UUID.randomUUID().toString();
                 user.setVerificationToken(verificationToken);
+                user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(VERIFICATION_TOKEN_VALIDITY_HOURS));
                 user.setLastVerificationEmailSent(LocalDateTime.now());
                 userRepository.save(user);
 
@@ -142,7 +157,7 @@ public class AuthService {
                 notificationService.sendEmailNotification(
                                 user.getId(),
                                 "Verify your LearnAI account",
-                                "Click the button below to verify your account. This link does not expire.",
+                                "Click the button below to verify your account. This link expires in 24 hours.",
                                 verificationLink);
         }
 
