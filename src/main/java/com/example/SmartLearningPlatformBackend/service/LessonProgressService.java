@@ -1,6 +1,8 @@
+// c:\Users\firas\Desktop\PFE Project\SmartLearningPlatformBackend\src\main\java\com\example\SmartLearningPlatformBackend\service\LessonProgressService.java
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.lesson.LessonProgressResponse;
+import com.example.SmartLearningPlatformBackend.enums.ActionType;
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
 import com.example.SmartLearningPlatformBackend.models.Course;
 import com.example.SmartLearningPlatformBackend.models.Flashcard;
@@ -16,6 +18,8 @@ import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository
 import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +42,10 @@ public class LessonProgressService {
         private final CourseRepository courseRepository;
         private final AiServiceClient aiServiceClient;
         private final NotificationService notificationService;
+
+        @Autowired
+        @Lazy
+        private GamificationService gamificationService;
 
         /**
          * Called after a quiz attempt is submitted.
@@ -76,6 +84,11 @@ public class LessonProgressService {
                         currentProgress.setQuizPassed(true);
                         currentProgress.setCompletedAt(LocalDateTime.now());
                         lessonProgressRepository.save(currentProgress);
+                        try {
+                                gamificationService.awardXp(studentId, ActionType.COMPLETE_LESSON);
+                        } catch (Exception e) {
+                                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
+                        }
 
                         long minutesElapsed = ChronoUnit.MINUTES.between(
                                         attempt.getStartedAt(), currentProgress.getCompletedAt());

@@ -17,49 +17,78 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FlashcardController {
 
-    private final FlashcardService flashcardService;
+        private final FlashcardService flashcardService;
 
-    /**
-     * POST /api/flashcards/{flashcardId}/review
-     * Rate a flashcard using SM-2: AGAIN, GOOD, or EASY.
-     * Response includes nextCard (next due flashcard in the course) and
-     * remainingDue count.
-     */
-    @PostMapping("/api/flashcards/{flashcardId}/review")
-    public ResponseEntity<FlashcardReviewResponse> reviewFlashcard(
-            @PathVariable Long flashcardId,
-            @RequestBody FlashcardRateRequest request,
-            @AuthenticationPrincipal UserDetailsImpl principal) {
+        /**
+         * POST /api/flashcards/{flashcardId}/review
+         * Rate a flashcard using SM-2: AGAIN, GOOD, or EASY.
+         * Response includes nextCard (next due flashcard in the course) and
+         * remainingDue count.
+         */
+        @PostMapping("/api/flashcards/{flashcardId}/review")
+        public ResponseEntity<FlashcardReviewResponse> reviewFlashcard(
+                        @PathVariable Long flashcardId,
+                        @RequestBody FlashcardRateRequest request,
+                        @AuthenticationPrincipal UserDetailsImpl principal) {
 
-        return ResponseEntity.ok(
-                flashcardService.reviewFlashcard(flashcardId, principal.getUser().getId(), request));
-    }
+                return ResponseEntity.ok(
+                                flashcardService.reviewFlashcard(flashcardId, principal.getUser().getId(), request));
+        }
 
-    /**
-     * GET /api/courses/{courseId}/flashcards/session
-     * Returns today's review session: due count, ordered flashcard list, and next
-     * upcoming date.
-     */
-    @GetMapping("/api/courses/{courseId}/flashcards/session")
-    public ResponseEntity<FlashcardSessionResponse> getSession(
-            @PathVariable Long courseId,
-            @AuthenticationPrincipal UserDetailsImpl principal) {
+        /**
+         * POST /api/lessons/{lessonId}/flashcards/{flashcardId}/review
+         * Lesson-scoped review so the nextCard stays within the lesson.
+         */
+        @PostMapping("/api/lessons/{lessonId}/flashcards/{flashcardId}/review")
+        public ResponseEntity<FlashcardReviewResponse> reviewFlashcardForLesson(
+                        @PathVariable Long lessonId,
+                        @PathVariable Long flashcardId,
+                        @RequestBody FlashcardRateRequest request,
+                        @AuthenticationPrincipal UserDetailsImpl principal) {
 
-        return ResponseEntity.ok(
-                flashcardService.getSession(courseId, principal.getUser().getId()));
-    }
+                return ResponseEntity.ok(
+                                flashcardService.reviewFlashcardForLesson(
+                                                lessonId, flashcardId, principal.getUser().getId(), request));
+        }
 
-    /**
-     * GET /api/courses/{courseId}/flashcards/due
-     * Kept for backwards compatibility — returns the same ordered list as
-     * session.flashcards.
-     */
-    @GetMapping("/api/courses/{courseId}/flashcards/due")
-    public ResponseEntity<List<FlashcardDueResponse>> getDueFlashcards(
-            @PathVariable Long courseId,
-            @AuthenticationPrincipal UserDetailsImpl principal) {
+        /**
+         * GET /api/courses/{courseId}/flashcards/session
+         * Returns today's review session: due count, ordered flashcard list, and next
+         * upcoming date.
+         */
+        @GetMapping("/api/courses/{courseId}/flashcards/session")
+        public ResponseEntity<FlashcardSessionResponse> getSession(
+                        @PathVariable Long courseId,
+                        @AuthenticationPrincipal UserDetailsImpl principal) {
 
-        return ResponseEntity.ok(
-                flashcardService.getDueFlashcards(courseId, principal.getUser().getId()));
-    }
+                return ResponseEntity.ok(
+                                flashcardService.getSession(courseId, principal.getUser().getId()));
+        }
+
+        /**
+         * GET /api/lessons/{lessonId}/flashcards/session
+         * Returns today's review session limited to the given lesson.
+         */
+        @GetMapping("/api/lessons/{lessonId}/flashcards/session")
+        public ResponseEntity<FlashcardSessionResponse> getLessonSession(
+                        @PathVariable Long lessonId,
+                        @AuthenticationPrincipal UserDetailsImpl principal) {
+
+                return ResponseEntity.ok(
+                                flashcardService.getSessionForLesson(lessonId, principal.getUser().getId()));
+        }
+
+        /**
+         * GET /api/courses/{courseId}/flashcards/due
+         * Kept for backwards compatibility — returns the same ordered list as
+         * session.flashcards.
+         */
+        @GetMapping("/api/courses/{courseId}/flashcards/due")
+        public ResponseEntity<List<FlashcardDueResponse>> getDueFlashcards(
+                        @PathVariable Long courseId,
+                        @AuthenticationPrincipal UserDetailsImpl principal) {
+
+                return ResponseEntity.ok(
+                                flashcardService.getDueFlashcards(courseId, principal.getUser().getId()));
+        }
 }

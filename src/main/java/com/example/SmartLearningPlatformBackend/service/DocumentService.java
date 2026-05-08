@@ -27,6 +27,8 @@ import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
 import com.example.SmartLearningPlatformBackend.repository.SuspiciousActivityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -59,6 +61,10 @@ public class DocumentService {
     private final CertificateRepository certificateRepository;
     private final SuspiciousActivityRepository suspiciousActivityRepository;
     private final ActivityLogService activityLogService;
+
+    @Autowired
+    @Lazy
+    private GamificationService gamificationService;
 
     // ─── Upload & Generate ──────────────────────────────────────────────────────
 
@@ -142,6 +148,7 @@ public class DocumentService {
 
                 // Log the course generation activity
                 activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
+                gamificationService.awardXp(student.getId(), ActionType.GENERATE_COURSE);
 
                 return UploadResponse.builder()
                         .documentId(savedDocument.getId())
@@ -181,6 +188,7 @@ public class DocumentService {
 
         // Log the course generation activity
         activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
+        gamificationService.awardXp(student.getId(), ActionType.GENERATE_COURSE);
 
         return UploadResponse.builder()
                 .documentId(savedDocument.getId())

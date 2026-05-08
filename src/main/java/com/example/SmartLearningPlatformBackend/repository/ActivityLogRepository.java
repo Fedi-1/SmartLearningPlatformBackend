@@ -16,6 +16,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
 
         List<ActivityLog> findTop5ByUserIdOrderByTimestampDesc(Long userId);
 
+        long countByUserIdAndAction(Long userId, com.example.SmartLearningPlatformBackend.enums.ActionType action);
+
         @Query("SELECT a FROM ActivityLog a LEFT JOIN FETCH a.user ORDER BY a.timestamp DESC")
         List<ActivityLog> findRecentWithUser(org.springframework.data.domain.Pageable pageable);
 

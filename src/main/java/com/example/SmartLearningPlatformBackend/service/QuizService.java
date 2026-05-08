@@ -1,8 +1,10 @@
+// c:\Users\firas\Desktop\PFE Project\SmartLearningPlatformBackend\src\main\java\com\example\SmartLearningPlatformBackend\service\QuizService.java
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.course.QuizQuestionResponse;
 import com.example.SmartLearningPlatformBackend.dto.lesson.LessonProgressResponse;
 import com.example.SmartLearningPlatformBackend.dto.quiz.*;
+import com.example.SmartLearningPlatformBackend.enums.ActionType;
 import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.enums.FinishReason;
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
@@ -10,6 +12,9 @@ import com.example.SmartLearningPlatformBackend.enums.QuestionType;
 import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QuizService {
 
         private final QuizRepository quizRepository;
@@ -33,6 +39,10 @@ public class QuizService {
         private final CourseRepository courseRepository;
         private final AiServiceClient aiServiceClient;
         private final NotificationService notificationService;
+
+        @Autowired
+        @Lazy
+        private GamificationService gamificationService;
 
         // ─── Start attempt ───────────────────────────────────────────────────────
 
@@ -182,6 +192,20 @@ public class QuizService {
                 }
                 attempt.setFinishReason(finishReason);
                 quizAttemptRepository.save(attempt);
+
+                if (passed) {
+                        try {
+                                gamificationService.awardXp(studentId, ActionType.PASS_QUIZ);
+                        } catch (Exception e) {
+                                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
+                        }
+                } else {
+                        try {
+                                gamificationService.awardXp(studentId, ActionType.FAIL_EXAM);
+                        } catch (Exception e) {
+                                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
+                        }
+                }
 
                 int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quiz.getId());
                 boolean attemptsExhausted = attemptsUsed >= quiz.getMaxAttempts();

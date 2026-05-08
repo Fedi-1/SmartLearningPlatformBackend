@@ -58,6 +58,14 @@ public class FlashcardService {
                 .collect(Collectors.toList());
     }
 
+    /** All flashcard IDs that belong to the given lesson. */
+    private List<Long> lessonFlashcardIds(Long lessonId) {
+        return flashcardRepository.findByLessonId(lessonId)
+                .stream()
+                .map(Flashcard::getId)
+                .collect(Collectors.toList());
+    }
+
     private FlashcardDueResponse toDto(Flashcard fc, FlashcardReview r) {
         return FlashcardDueResponse.builder()
                 .id(fc.getId())
@@ -97,6 +105,46 @@ public class FlashcardService {
 
         // Soonest upcoming (future) date — included so the UI can tell the student when
         // to come back
+        String nextUpcoming = null;
+        if (dueCards.isEmpty()) {
+            nextUpcoming = flashcardReviewRepository
+                    .findByStudentIdAndFlashcardIdInAndNextReviewDateAfterOrderByNextReviewDateAsc(
+                            studentId, fcIds, today)
+                    .stream().findFirst()
+                    .map(r -> r.getNextReviewDate().toString())
+                    .orElse(null);
+        }
+
+        return FlashcardSessionResponse.builder()
+                .due(dueCards.size())
+                .flashcards(dueCards)
+                .nextUpcomingReviewDate(nextUpcoming)
+                .build();
+    }
+
+    // ─── GET /api/lessons/{lessonId}/flashcards/session ─────────────────────
+
+    @Transactional(readOnly = true)
+    public FlashcardSessionResponse getSessionForLesson(Long lessonId, Long studentId) {
+        List<Long> fcIds = lessonFlashcardIds(lessonId);
+        if (fcIds.isEmpty()) {
+            return FlashcardSessionResponse.builder()
+                    .due(0).flashcards(List.of()).nextUpcomingReviewDate(null).build();
+        }
+
+        Map<Long, Flashcard> fcMap = flashcardRepository.findAllById(fcIds)
+                .stream().collect(Collectors.toMap(Flashcard::getId, f -> f));
+
+        LocalDate today = LocalDate.now();
+
+        List<FlashcardReview> dueReviews = flashcardReviewRepository
+                .findByStudentIdAndFlashcardIdInAndNextReviewDateLessThanEqualOrderByNextReviewDateAsc(
+                        studentId, fcIds, today);
+
+        List<FlashcardDueResponse> dueCards = dueReviews.stream()
+                .map(r -> toDto(fcMap.get(r.getFlashcardId()), r))
+                .collect(Collectors.toList());
+
         String nextUpcoming = null;
         if (dueCards.isEmpty()) {
             nextUpcoming = flashcardReviewRepository
@@ -214,6 +262,60 @@ public class FlashcardService {
                 .lastReviewedAt(review.getLastReviewedAt())
                 .lastRating(rating.name())
                 .qualityScore(review.getQualityScore())
+                .nextCard(nextCard)
+                .remainingDue(stillDue.size())
+                .build();
+    }
+
+    // ─── POST /api/lessons/{lessonId}/flashcards/{flashcardId}/review ────────
+
+    @Transactional
+    public FlashcardReviewResponse reviewFlashcardForLesson(Long lessonId, Long flashcardId,
+            Long studentId, FlashcardRateRequest request) {
+
+        FlashcardReviewResponse response = reviewFlashcard(flashcardId, studentId, request);
+
+        Flashcard flashcard = flashcardRepository.findById(flashcardId)
+                .orElseThrow(() -> new IllegalArgumentException("Flashcard not found."));
+
+        if (!lessonId.equals(flashcard.getLessonId())) {
+            throw new IllegalArgumentException("Flashcard does not belong to this lesson.");
+        }
+
+        List<Long> lessonFcIds = lessonFlashcardIds(lessonId);
+        List<Long> remainingIds = lessonFcIds.stream()
+                .filter(id -> !id.equals(flashcardId))
+                .collect(Collectors.toList());
+
+        LocalDate today = LocalDate.now();
+        List<FlashcardReview> stillDue = remainingIds.isEmpty() ? List.of()
+                : flashcardReviewRepository
+                        .findByStudentIdAndFlashcardIdInAndNextReviewDateLessThanEqualOrderByNextReviewDateAsc(
+                                studentId, remainingIds, today);
+
+        FlashcardDueResponse nextCard = null;
+        if (!stillDue.isEmpty()) {
+            FlashcardReview nextR = stillDue.get(0);
+            Flashcard nextFc = flashcardRepository.findById(nextR.getFlashcardId()).orElse(null);
+            if (nextFc != null) {
+                nextCard = toDto(nextFc, nextR);
+            }
+        }
+
+        return FlashcardReviewResponse.builder()
+                .id(response.getId())
+                .flashcardId(response.getFlashcardId())
+                .term(response.getTerm())
+                .definition(response.getDefinition())
+                .difficulty(response.getDifficulty())
+                .easeFactor(response.getEaseFactor())
+                .interval(response.getInterval())
+                .repetitionCount(response.getRepetitionCount())
+                .consecutiveCorrectReviews(response.getConsecutiveCorrectReviews())
+                .nextReviewDate(response.getNextReviewDate())
+                .lastReviewedAt(response.getLastReviewedAt())
+                .lastRating(response.getLastRating())
+                .qualityScore(response.getQualityScore())
                 .nextCard(nextCard)
                 .remainingDue(stillDue.size())
                 .build();

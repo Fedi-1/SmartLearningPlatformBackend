@@ -1,3 +1,4 @@
+// c:\Users\firas\Desktop\PFE Project\SmartLearningPlatformBackend\src\main\java\com\example\SmartLearningPlatformBackend\service\AuthService.java
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.auth.AuthResponse;
@@ -9,6 +10,9 @@ import com.example.SmartLearningPlatformBackend.models.UserDetailsImpl;
 import com.example.SmartLearningPlatformBackend.repository.UserRepository;
 import com.example.SmartLearningPlatformBackend.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,6 +24,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
         private static final long VERIFICATION_TOKEN_VALIDITY_HOURS = 24;
@@ -29,6 +34,10 @@ public class AuthService {
         private final JwtService jwtService;
         private final AuthenticationManager authenticationManager;
         private final NotificationService notificationService;
+
+        @Autowired
+        @Lazy
+        private GamificationService gamificationService;
 
         // ─── Register ────────────────────────────────────────────────────────────
 
@@ -91,7 +100,12 @@ public class AuthService {
                                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
                 user.setLastLogin(LocalDateTime.now());
-                userRepository.save(user);
+                var saved = userRepository.save(user);
+                try {
+                        gamificationService.updateDailyLoginStreak(saved.getId());
+                } catch (Exception e) {
+                        log.warn("XP award failed for student {}: {}", saved.getId(), e.getMessage());
+                }
 
                 var userDetails = new UserDetailsImpl(user);
                 var token = jwtService.generateToken(userDetails);
