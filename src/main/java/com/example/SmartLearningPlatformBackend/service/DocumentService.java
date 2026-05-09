@@ -24,6 +24,7 @@ import com.example.SmartLearningPlatformBackend.repository.LessonRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAnswerRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
+import com.example.SmartLearningPlatformBackend.repository.StudySessionRepository;
 import com.example.SmartLearningPlatformBackend.repository.SuspiciousActivityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,7 @@ public class DocumentService {
     private final ExamAttemptQuestionRepository examAttemptQuestionRepository;
     private final ExamAnswerRepository examAnswerRepository;
     private final CertificateRepository certificateRepository;
+    private final StudySessionRepository studySessionRepository;
     private final SuspiciousActivityRepository suspiciousActivityRepository;
     private final ActivityLogService activityLogService;
 
@@ -271,7 +273,11 @@ public class DocumentService {
                 }
             }
 
-            // ── 3. Delete the course (JPA cascade handles everything else) ───────
+            // ── 3. Delete study sessions before lesson cascade ───────
+            // StudySession keeps FK references to both the course and its lessons.
+            studySessionRepository.deleteAllByCourseId(course.getId());
+
+            // ── 4. Delete the course (JPA cascade handles everything else) ───────
             // course → lessons → flashcards → flashcard_reviews
             // → quizzes → quiz_questions → quiz_answers (JPA)
             // → quiz_attempts → quiz_answers (JPA)

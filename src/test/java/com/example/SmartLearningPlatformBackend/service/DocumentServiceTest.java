@@ -3,11 +3,15 @@ package com.example.SmartLearningPlatformBackend.service;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.SmartLearningPlatformBackend.enums.DocumentStatus;
 import com.example.SmartLearningPlatformBackend.exception.DuplicateDocumentException;
 import com.example.SmartLearningPlatformBackend.exception.UnsupportedFileTypeException;
+import com.example.SmartLearningPlatformBackend.models.Course;
+import com.example.SmartLearningPlatformBackend.models.Document;
 import com.example.SmartLearningPlatformBackend.models.Student;
 import com.example.SmartLearningPlatformBackend.repository.CertificateRepository;
 import com.example.SmartLearningPlatformBackend.repository.CourseRepository;
@@ -20,7 +24,9 @@ import com.example.SmartLearningPlatformBackend.repository.LessonRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAnswerRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
+import com.example.SmartLearningPlatformBackend.repository.StudySessionRepository;
 import com.example.SmartLearningPlatformBackend.repository.SuspiciousActivityRepository;
+import org.mockito.InOrder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,6 +34,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentServiceTest {
@@ -58,6 +66,8 @@ class DocumentServiceTest {
     private ExamAnswerRepository examAnswerRepository;
     @Mock
     private CertificateRepository certificateRepository;
+    @Mock
+    private StudySessionRepository studySessionRepository;
     @Mock
     private SuspiciousActivityRepository suspiciousActivityRepository;
     @Mock
@@ -103,5 +113,33 @@ class DocumentServiceTest {
 
         assertThrows(DuplicateDocumentException.class,
                 () -> documentService.uploadAndGenerate(mockFile, mockStudent));
+    }
+
+    @Test
+    void softDeleteDocument_deletesStudySessionsBeforeCourse() {
+        Document document = Document.builder()
+                .id(108L)
+                .studentId(1L)
+                .status(DocumentStatus.COMPLETED)
+                .build();
+        Course course = Course.builder()
+                .id(55L)
+                .documentId(108L)
+                .studentId(1L)
+                .title("Generated course")
+                .build();
+
+        when(documentRepository.findById(108L)).thenReturn(Optional.of(document));
+        when(courseRepository.findByDocumentIdAndStudentIdOrderByIdDesc(108L, 1L))
+                .thenReturn(List.of(course));
+        when(examRepository.findByCourseId(55L)).thenReturn(Optional.empty());
+        when(lessonRepository.findByCourseIdOrderByLessonNumberAsc(55L)).thenReturn(List.of());
+
+        documentService.softDeleteDocument(108L, 1L);
+
+        InOrder inOrder = inOrder(studySessionRepository, courseRepository);
+        inOrder.verify(studySessionRepository).deleteAllByCourseId(55L);
+        inOrder.verify(courseRepository).delete(course);
+        verify(documentRepository).delete(document);
     }
 }

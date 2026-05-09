@@ -2,6 +2,7 @@ package com.example.SmartLearningPlatformBackend.repository;
 
 import com.example.SmartLearningPlatformBackend.models.StudySession;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,4 +19,8 @@ public interface StudySessionRepository extends JpaRepository<StudySession, Long
 
     @Query("SELECT COALESCE(SUM(s.accumulatedSeconds), 0) FROM StudySession s WHERE s.studentId = :studentId")
     Long sumAccumulatedSecondsByStudentId(@Param("studentId") Long studentId);
+
+    @Modifying
+    @Query("DELETE FROM StudySession s WHERE s.courseId = :courseId")
+    int deleteAllByCourseId(@Param("courseId") Long courseId);
 }
