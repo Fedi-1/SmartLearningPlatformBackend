@@ -182,13 +182,14 @@ public class LessonProgressService {
                                 .map(Flashcard::getTerm)
                                 .collect(Collectors.toList());
 
-                // Detect language from first 100 chars of content
+                // Detect language from the beginning of the lesson content
                 String contentPreview = lesson.getContent() != null
-                                ? lesson.getContent().substring(0, Math.min(100, lesson.getContent().length()))
+                                ? lesson.getContent().substring(0, Math.min(240, lesson.getContent().length()))
                                 : "";
-                boolean isFrench = contentPreview.matches(
+                boolean isArabic = contentPreview.matches(".*[\\u0600-\\u06FF].*");
+                boolean isFrench = contentPreview.toLowerCase().matches(
                                 ".*\\b(le|la|les|un|une|des|et|est|en|de|du|pour|avec|sur|dans|qui|que|ce|se|ne|pas|plus|aussi|comme|il|elle|nous|vous|ils|elles)\\b.*");
-                String language = isFrench ? "fr" : "en";
+                String language = isArabic ? "ar" : isFrench ? "fr" : "en";
 
                 int estimatedReadTime = lesson.getEstimatedReadTime() != null
                                 ? lesson.getEstimatedReadTime()
