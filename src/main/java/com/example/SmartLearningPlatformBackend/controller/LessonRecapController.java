@@ -80,6 +80,26 @@ public class LessonRecapController {
 
     // ── Shared path resolution + guard ───────────────────────────────────────
 
+    // WebVTT recap subtitle tracks for the browser video player.
+    @GetMapping("/recap-subtitle")
+    public ResponseEntity<byte[]> getRecapSubtitle(@RequestParam String path) {
+        File file = resolveFile(path, "/recap-videos/");
+        if (file == null || !file.getName().toLowerCase().endsWith(".vtt"))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!file.exists())
+            return ResponseEntity.notFound().build();
+
+        try {
+            byte[] data = java.nio.file.Files.readAllBytes(file.toPath());
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("text/vtt; charset=UTF-8"))
+                    .header(HttpHeaders.CACHE_CONTROL, "no-cache")
+                    .body(data);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     private File resolveFile(String rawPath, String requiredSegment) {
         Path raw = Paths.get(rawPath);
         Path resolved;

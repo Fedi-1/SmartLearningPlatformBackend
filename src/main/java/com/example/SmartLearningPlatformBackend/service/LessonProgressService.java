@@ -23,8 +23,10 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -168,7 +170,7 @@ public class LessonProgressService {
 
                 // Return cached path if already generated
                 if (lesson.getRecapVideoPath() != null && !lesson.getRecapVideoPath().isBlank()) {
-                        return Map.of("recapVideoPath", lesson.getRecapVideoPath());
+                        return buildRecapResponse(lesson.getRecapVideoPath());
                 }
 
                 // Load course for title
@@ -214,7 +216,40 @@ public class LessonProgressService {
                         lessonRepository.save(lesson);
                 }
 
-                return Map.of("recapVideoPath", videoPath != null ? videoPath : "");
+                Map<String, String> response = buildRecapResponse(videoPath);
+                copyIfPresent(result, response, "subtitleEnPath");
+                copyIfPresent(result, response, "subtitleFrPath");
+                copyIfPresent(result, response, "subtitleArPath");
+                return response;
+        }
+
+        private Map<String, String> buildRecapResponse(String videoPath) {
+                Map<String, String> response = new HashMap<>();
+                response.put("recapVideoPath", videoPath != null ? videoPath : "");
+                if (videoPath == null || videoPath.isBlank()) {
+                        return response;
+                }
+
+                String base = videoPath.toLowerCase().endsWith(".mp4")
+                                ? videoPath.substring(0, videoPath.length() - 4)
+                                : videoPath;
+                addSubtitleIfExists(response, "subtitleEnPath", base + ".en.vtt");
+                addSubtitleIfExists(response, "subtitleFrPath", base + ".fr.vtt");
+                addSubtitleIfExists(response, "subtitleArPath", base + ".ar.vtt");
+                return response;
+        }
+
+        private void addSubtitleIfExists(Map<String, String> response, String key, String path) {
+                if (new File(path).exists()) {
+                        response.put(key, path);
+                }
+        }
+
+        private void copyIfPresent(Map<String, String> source, Map<String, String> target, String key) {
+                String value = source.get(key);
+                if (value != null && !value.isBlank()) {
+                        target.put(key, value);
+                }
         }
 
         private void unlockNextLesson(Long studentId, Lesson currentLesson) {

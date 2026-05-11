@@ -1,6 +1,7 @@
 package com.example.SmartLearningPlatformBackend.repository;
 
 import com.example.SmartLearningPlatformBackend.models.Certificate;
+import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,6 +22,8 @@ public interface CertificateRepository extends JpaRepository<Certificate, Long> 
     Optional<Certificate> findByStudentIdAndCourseId(Long studentId, Long courseId);
 
     List<Certificate> findAllByStudentId(Long studentId);
+
+    long countByStudentIdAndStatus(Long studentId, CertificateStatus status);
 
     Optional<Certificate> findByCertificateUuid(String certificateUuid);
 

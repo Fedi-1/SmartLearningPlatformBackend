@@ -4,12 +4,14 @@ package com.example.SmartLearningPlatformBackend.service;
 import com.example.SmartLearningPlatformBackend.dto.gamification.StudentProfileDTO;
 import com.example.SmartLearningPlatformBackend.dto.gamification.XpUpdateResponse;
 import com.example.SmartLearningPlatformBackend.enums.ActionType;
+import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
 import com.example.SmartLearningPlatformBackend.enums.Rank;
 import com.example.SmartLearningPlatformBackend.enums.UserRole;
 import com.example.SmartLearningPlatformBackend.models.ActivityLog;
 import com.example.SmartLearningPlatformBackend.models.User;
 import com.example.SmartLearningPlatformBackend.repository.ActivityLogRepository;
+import com.example.SmartLearningPlatformBackend.repository.CertificateRepository;
 import com.example.SmartLearningPlatformBackend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +51,7 @@ public class GamificationService {
 
     private final UserRepository userRepository;
     private final ActivityLogRepository activityLogRepository;
+    private final CertificateRepository certificateRepository;
     private final NotificationService notificationService;
 
     @Transactional
@@ -141,8 +144,8 @@ public class GamificationService {
         int completedCourses = (int) activityLogRepository.countByUserIdAndAction(studentId,
                 ActionType.GENERATE_COURSE);
         int passedExams = (int) activityLogRepository.countByUserIdAndAction(studentId, ActionType.PASS_EXAM);
-        int earnedCertificates = (int) activityLogRepository.countByUserIdAndAction(studentId,
-                ActionType.DOWNLOAD_CERTIFICATE);
+        int earnedCertificates = (int) certificateRepository.countByStudentIdAndStatus(studentId,
+                CertificateStatus.APPROVED);
 
         List<String> recentAchievements = activityLogRepository.findTop5ByUserIdOrderByTimestampDesc(studentId)
                 .stream()

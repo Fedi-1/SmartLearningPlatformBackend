@@ -37,6 +37,7 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers("/api/lessons/recap-video").permitAll()
+                                                .requestMatchers("/api/lessons/recap-subtitle").permitAll()
                                                 .requestMatchers("/api/certificates/*/download").permitAll()
                                                 .requestMatchers("/api/admin/certificates/verify/**").permitAll()
                                                 .requestMatchers("/api/chat").permitAll()
