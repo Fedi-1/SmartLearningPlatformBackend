@@ -22,6 +22,7 @@ import com.example.SmartLearningPlatformBackend.repository.ExamAttemptRepository
 import com.example.SmartLearningPlatformBackend.repository.ExamRepository;
 import com.example.SmartLearningPlatformBackend.repository.LessonRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAnswerRepository;
+import com.example.SmartLearningPlatformBackend.repository.QuizAttemptQuestionRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
 import com.example.SmartLearningPlatformBackend.repository.StudySessionRepository;
@@ -54,6 +55,8 @@ class DocumentServiceTest {
     private QuizRepository quizRepository;
     @Mock
     private QuizAttemptRepository quizAttemptRepository;
+    @Mock
+    private QuizAttemptQuestionRepository quizAttemptQuestionRepository;
     @Mock
     private QuizAnswerRepository quizAnswerRepository;
     @Mock
@@ -107,7 +110,7 @@ class DocumentServiceTest {
         when(mockFile.getBytes()).thenReturn("dummy content".getBytes());
         when(mockStudent.getId()).thenReturn(1L);
 
-        when(documentRepository.existsByStudentIdAndFileHashAndStatusNot(
+        when(documentRepository.CheckDuplicateDocument(
                 eq(1L), anyString(), eq(DocumentStatus.FAILED)))
                 .thenReturn(true);
 
@@ -116,7 +119,7 @@ class DocumentServiceTest {
     }
 
     @Test
-    void softDeleteDocument_deletesStudySessionsBeforeCourse() {
+    void DeleteDocument_deletesStudySessionsBeforeCourse() {
         Document document = Document.builder()
                 .id(108L)
                 .studentId(1L)
@@ -135,7 +138,7 @@ class DocumentServiceTest {
         when(examRepository.findByCourseId(55L)).thenReturn(Optional.empty());
         when(lessonRepository.findByCourseIdOrderByLessonNumberAsc(55L)).thenReturn(List.of());
 
-        documentService.softDeleteDocument(108L, 1L);
+        documentService.DeleteDocument(108L, 1L);
 
         InOrder inOrder = inOrder(studySessionRepository, courseRepository);
         inOrder.verify(studySessionRepository).deleteAllByCourseId(55L);

@@ -61,6 +61,10 @@ public class QuizAttempt {
     @Builder.Default
     private List<QuizAnswer> answers = new ArrayList<>();
 
+    @OneToMany(mappedBy = "quizAttempt", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<QuizAttemptQuestion> attemptQuestions = new ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         if (startedAt == null) {

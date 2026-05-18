@@ -12,8 +12,6 @@ import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,10 +40,6 @@ public class ExamGenerationService {
     private final PlatformTransactionManager transactionManager;
     private final NotificationService notificationService;
     private final ActivityLogService activityLogService;
-
-    @Autowired
-    @Lazy
-    private GamificationService gamificationService;
 
     // ─── Generate exam for course ─────────────────────────────────────────────
 
@@ -292,18 +286,8 @@ public class ExamGenerationService {
         // Log exam result
         if (passed) {
             activityLogService.log(studentId, ActionType.PASS_EXAM, "ExamAttempt", attempt.getId());
-            try {
-                gamificationService.awardXp(studentId, ActionType.PASS_EXAM);
-            } catch (Exception e) {
-                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
-            }
         } else {
             activityLogService.log(studentId, ActionType.FAIL_EXAM, "ExamAttempt", attempt.getId());
-            try {
-                gamificationService.awardXp(studentId, ActionType.FAIL_EXAM);
-            } catch (Exception e) {
-                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
-            }
         }
 
         // Issue certificate if passed

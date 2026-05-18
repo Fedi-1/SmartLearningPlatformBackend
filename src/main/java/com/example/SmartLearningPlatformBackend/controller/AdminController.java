@@ -5,9 +5,13 @@ import com.example.SmartLearningPlatformBackend.dto.admin.*;
 import com.example.SmartLearningPlatformBackend.dto.student.ChangePasswordRequest;
 import com.example.SmartLearningPlatformBackend.dto.student.StudentProfileResponse;
 import com.example.SmartLearningPlatformBackend.dto.student.UpdateProfileRequest;
+import com.example.SmartLearningPlatformBackend.enums.FileType;
+import com.example.SmartLearningPlatformBackend.models.Document;
 import com.example.SmartLearningPlatformBackend.models.UserDetailsImpl;
 import com.example.SmartLearningPlatformBackend.service.AdminService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,6 +44,27 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getCategoryDistribution());
     }
 
+    @GetMapping("/content")
+    public ResponseEntity<List<AdminContentItem>> getContentItems() {
+        return ResponseEntity.ok(adminService.getContentItems());
+    }
+
+    @GetMapping("/documents/{documentId}/download")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentId) {
+        Document document = adminService.getDocumentForAdmin(documentId);
+        return ResponseEntity.ok()
+                .contentType(mediaTypeFor(document.getFileType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + safeFileName(document.getFileName()) + "\"")
+                .body(document.getFileContent());
+    }
+
+    @DeleteMapping("/documents/{documentId}")
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long documentId) {
+        adminService.deleteDocumentForAdmin(documentId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/recent-activity")
     public ResponseEntity<List<RecentActivityEntry>> getRecentActivity(
             @RequestParam(defaultValue = "5") int limit) {
@@ -64,6 +89,13 @@ public class AdminController {
     @PatchMapping("/students/{studentId}/toggle-status")
     public ResponseEntity<Boolean> toggleStudentStatus(@PathVariable Long studentId) {
         return ResponseEntity.ok(adminService.toggleStudentStatus(studentId));
+    }
+
+    @PutMapping("/students/{studentId}/profile")
+    public ResponseEntity<StudentDetailResponse> updateStudentProfile(
+            @PathVariable Long studentId,
+            @RequestBody UpdateProfileRequest request) {
+        return ResponseEntity.ok(adminService.updateStudentProfile(studentId, request));
     }
 
     @PatchMapping("/certificates/{id}/approve")
@@ -120,5 +152,24 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(400).body(Map.of("message", e.getMessage()));
         }
+    }
+
+    private MediaType mediaTypeFor(FileType fileType) {
+        if (fileType == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return switch (fileType) {
+            case PDF -> MediaType.APPLICATION_PDF;
+            case DOCX -> MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            case PPTX -> MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+            case IMAGE -> MediaType.IMAGE_JPEG;
+        };
+    }
+
+    private String safeFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "document";
+        }
+        return fileName.replace("\"", "").replace("\\", "_").replace("/", "_");
     }
 }

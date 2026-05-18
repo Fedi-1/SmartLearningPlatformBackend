@@ -12,7 +12,9 @@ import com.example.SmartLearningPlatformBackend.enums.UserRole;
 import com.example.SmartLearningPlatformBackend.models.ActivityLog;
 import com.example.SmartLearningPlatformBackend.models.Certificate;
 import com.example.SmartLearningPlatformBackend.models.Course;
+import com.example.SmartLearningPlatformBackend.models.Document;
 import com.example.SmartLearningPlatformBackend.models.ExamAttempt;
+import com.example.SmartLearningPlatformBackend.models.Student;
 import com.example.SmartLearningPlatformBackend.models.User;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +57,7 @@ public class AdminService {
         private final SuspiciousActivityRepository suspiciousActivityRepository;
         private final PasswordEncoder passwordEncoder;
         private final CertificateService certificateService;
+        private final DocumentService documentService;
 
         @org.springframework.beans.factory.annotation.Value("${backend.base-url:http://localhost:8069}")
         private String backendBaseUrl;
@@ -102,6 +105,71 @@ public class AdminService {
                         log.error("AdminService.getActivityChart failed", e);
                         return Collections.emptyList();
                 }
+        }
+
+        @Transactional(readOnly = true)
+        public List<AdminContentItem> getContentItems() {
+                DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE_TIME;
+                return documentRepository.findAll().stream()
+                                .sorted(Comparator.comparing(
+                                                Document::getUploadedAt,
+                                                Comparator.nullsLast(Comparator.reverseOrder())))
+                                .map(document -> {
+                                        Optional<Course> courseOpt = courseRepository
+                                                        .findByDocumentIdOrderByIdDesc(document.getId())
+                                                        .stream()
+                                                        .findFirst();
+                                        Optional<User> studentOpt = userRepository.findById(document.getStudentId());
+                                        String studentName = studentOpt
+                                                        .map(user -> user.getFirstName() + " " + user.getLastName())
+                                                        .orElse("Unknown");
+                                        String studentEmail = studentOpt.map(User::getEmail).orElse("");
+                                        Integer totalLessons = courseOpt
+                                                        .map(course -> lessonRepository
+                                                                        .findByCourseIdOrderByLessonNumberAsc(
+                                                                                        course.getId())
+                                                                        .size())
+                                                        .orElse(0);
+
+                                        return AdminContentItem.builder()
+                                                        .documentId(document.getId())
+                                                        .documentFileName(document.getFileName())
+                                                        .documentFileType(document.getFileType() != null
+                                                                        ? document.getFileType().name()
+                                                                        : "")
+                                                        .documentStatus(document.getStatus() != null
+                                                                        ? document.getStatus().name()
+                                                                        : "")
+                                                        .documentFileSize(document.getFileSize())
+                                                        .documentUploadedAt(document.getUploadedAt() != null
+                                                                        ? document.getUploadedAt().format(fmt)
+                                                                        : null)
+                                                        .documentCategory(document.getCategory())
+                                                        .studentId(document.getStudentId())
+                                                        .studentName(studentName)
+                                                        .studentEmail(studentEmail)
+                                                        .courseId(courseOpt.map(Course::getId).orElse(null))
+                                                        .courseTitle(courseOpt.map(Course::getTitle).orElse(null))
+                                                        .courseCategory(courseOpt.map(Course::getCategory).orElse(null))
+                                                        .totalLessons(totalLessons)
+                                                        .build();
+                                })
+                                .collect(Collectors.toList());
+        }
+
+        @Transactional(readOnly = true)
+        public Document getDocumentForAdmin(Long documentId) {
+                return documentRepository.findById(documentId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Document not found."));
+        }
+
+        @Transactional
+        public void deleteDocumentForAdmin(Long documentId) {
+                Document document = documentRepository.findById(documentId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Document not found."));
+                documentService.DeleteDocument(document.getId(), document.getStudentId());
         }
 
         @Transactional(readOnly = true)
@@ -242,6 +310,10 @@ public class AdminService {
                                 .firstName(user.getFirstName())
                                 .lastName(user.getLastName())
                                 .email(user.getEmail())
+                                .phoneNumber(user instanceof Student student ? student.getPhoneNumber() : null)
+                                .dateOfBirth(user instanceof Student student && student.getDateOfBirth() != null
+                                                ? student.getDateOfBirth().toString()
+                                                : null)
                                 .isActive(user.getIsActive())
                                 .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toLocalDate().toString()
                                                 : null)
@@ -283,6 +355,41 @@ public class AdminService {
                 user.setIsActive(newStatus);
                 userRepository.save(user);
                 return newStatus;
+        }
+
+        @Transactional
+        public StudentDetailResponse updateStudentProfile(Long studentId, UpdateProfileRequest request) {
+                User user = userRepository.findById(studentId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Student not found."));
+                if (user.getRole() != UserRole.STUDENT || !(user instanceof Student student)) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not a student.");
+                }
+
+                if (request.getFirstName() != null && !request.getFirstName().isBlank()) {
+                        student.setFirstName(request.getFirstName().trim());
+                }
+                if (request.getLastName() != null && !request.getLastName().isBlank()) {
+                        student.setLastName(request.getLastName().trim());
+                }
+                if (request.getEmail() != null && !request.getEmail().isBlank()) {
+                        String email = request.getEmail().trim().toLowerCase();
+                        userRepository.findByEmail(email)
+                                        .filter(existing -> !existing.getId().equals(studentId))
+                                        .ifPresent(existing -> {
+                                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                                                "Email is already in use.");
+                                        });
+                        student.setEmail(email);
+                }
+                if (request.getPhoneNumber() != null) {
+                        String phone = request.getPhoneNumber().trim();
+                        student.setPhoneNumber(phone.isBlank() ? null : phone);
+                }
+                student.setDateOfBirth(request.getDateOfBirth());
+
+                userRepository.save(student);
+                return getStudentDetail(studentId);
         }
 
         // ── Certificate approval ──────────────────────────────────────────────────
@@ -387,31 +494,6 @@ public class AdminService {
                                                         .build();
                                 })
                                 .collect(Collectors.toList());
-        }
-
-        @Transactional(readOnly = true)
-        public CertificateVerifyResponse verifyCertificate(String uuid) {
-                Optional<Certificate> certOpt = certificateRepository.findByCertificateUuid(uuid);
-                if (certOpt.isEmpty()) {
-                        return CertificateVerifyResponse.builder().valid(false).build();
-                }
-                Certificate cert = certOpt.get();
-                String studentName = userRepository.findById(cert.getStudentId())
-                                .map(u -> u.getFirstName() + " " + u.getLastName())
-                                .orElse("Unknown");
-                String courseTitle = courseRepository.findById(cert.getCourseId())
-                                .map(Course::getTitle)
-                                .orElse("");
-                return CertificateVerifyResponse.builder()
-                                .valid(true)
-                                .studentName(studentName)
-                                .courseTitle(courseTitle)
-                                .score(cert.getScore())
-                                .issuedAt(cert.getIssuedAt() != null
-                                                ? cert.getIssuedAt().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                                                : null)
-                                .status(cert.getStatus())
-                                .build();
         }
 
         // ── All Exam Attempts (admin list) ────────────────────────────────────────

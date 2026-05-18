@@ -1,10 +1,8 @@
-// c:\Users\firas\Desktop\PFE Project\SmartLearningPlatformBackend\src\main\java\com\example\SmartLearningPlatformBackend\service\QuizService.java
 package com.example.SmartLearningPlatformBackend.service;
 
 import com.example.SmartLearningPlatformBackend.dto.course.QuizQuestionResponse;
 import com.example.SmartLearningPlatformBackend.dto.lesson.LessonProgressResponse;
 import com.example.SmartLearningPlatformBackend.dto.quiz.*;
-import com.example.SmartLearningPlatformBackend.enums.ActionType;
 import com.example.SmartLearningPlatformBackend.enums.DifficultyLevel;
 import com.example.SmartLearningPlatformBackend.enums.FinishReason;
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
@@ -13,8 +11,6 @@ import com.example.SmartLearningPlatformBackend.models.*;
 import com.example.SmartLearningPlatformBackend.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,8 +26,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class QuizService {
 
+        private static final int QUESTIONS_PER_ATTEMPT = 5;
+        private static final int QUESTION_BANK_SIZE = 15;
+
         private final QuizRepository quizRepository;
         private final QuizAttemptRepository quizAttemptRepository;
+        private final QuizAttemptQuestionRepository quizAttemptQuestionRepository;
         private final QuizAnswerRepository quizAnswerRepository;
         private final QuizQuestionRepository quizQuestionRepository;
         private final LessonRepository lessonRepository;
@@ -40,25 +40,25 @@ public class QuizService {
         private final AiServiceClient aiServiceClient;
         private final NotificationService notificationService;
 
-        @Autowired
-        @Lazy
-        private GamificationService gamificationService;
-
-        // ─── Start attempt ───────────────────────────────────────────────────────
-
         @Transactional
         public QuizAttemptResponse startAttempt(Long quizId, Long studentId) {
-
                 Quiz quiz = quizRepository.findById(quizId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Quiz not found."));
 
-                int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quizId);
+                List<QuizAttempt> previousAttempts = quizAttemptRepository.findByStudentIdAndQuizId(studentId, quizId);
+                int attemptsUsed = previousAttempts.size();
 
                 if (attemptsUsed >= quiz.getMaxAttempts()) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                         "Maximum attempts reached for this quiz.");
                 }
+
+                Lesson lesson = lessonRepository.findById(quiz.getLessonId())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Lesson not found."));
+
+                List<QuizQuestion> questionBank = ensureQuizQuestionBank(quiz, lesson.getContent());
 
                 QuizAttempt attempt = QuizAttempt.builder()
                                 .studentId(studentId)
@@ -70,63 +70,24 @@ public class QuizService {
                                 .build();
                 attempt = quizAttemptRepository.save(attempt);
 
-                // ── Fetch the lesson content for this quiz ────────────────────────
-                Lesson lesson = lessonRepository.findById(quiz.getLessonId())
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                                                "Lesson not found."));
-
-                // ── Call FastAPI to generate 5 fresh questions on demand ──────────
-                List<String> previousQuestions = quizQuestionRepository.findByQuizId(quiz.getId())
-                                .stream()
-                                .map(QuizQuestion::getQuestionText)
-                                .collect(Collectors.toList());
-
-                List<Map<String, Object>> rawQuestions = aiServiceClient.generateQuizQuestions(
-                                lesson.getContent(), previousQuestions);
-
-                // ── Persist generated questions and link them to this attempt ─────
-                List<QuizQuestion> savedQuestions = new ArrayList<>();
-                for (int i = 0; i < rawQuestions.size(); i++) {
-                        Map<String, Object> q = rawQuestions.get(i);
-
-                        QuestionType questionType = parseQuestionType(getString(q, "questionType"));
-                        DifficultyLevel difficulty = parseDifficulty(getString(q, "difficulty"));
-                        int pointsWorth = pointsFor(difficulty);
-
-                        List<?> opts = q.get("options") instanceof List ? (List<?>) q.get("options") : List.of();
-
-                        QuizQuestion question = QuizQuestion.builder()
-                                        .quizId(quizId)
-                                        .questionNumber(i + 1)
-                                        .questionText(getString(q, "question"))
-                                        .questionType(questionType)
-                                        .correctAnswer(getString(q, "correctAnswer"))
-                                        .option1(opts.size() > 0 ? opts.get(0).toString() : "")
-                                        .option2(opts.size() > 1 ? opts.get(1).toString() : "")
-                                        .option3(opts.size() > 2 ? opts.get(2).toString() : "")
-                                        .option4(opts.size() > 3 ? opts.get(3).toString() : null)
-                                        .explanation(getString(q, "explanation"))
-                                        .difficulty(difficulty)
-                                        .pointsWorth(pointsWorth)
-                                        .build();
-
-                        QuizQuestion saved = quizQuestionRepository.save(question);
-                        savedQuestions.add(saved);
+                List<QuizQuestion> selectedQuestions = selectQuestionsForAttempt(questionBank, previousAttempts);
+                for (QuizQuestion question : selectedQuestions) {
+                        quizAttemptQuestionRepository.save(QuizAttemptQuestion.builder()
+                                        .quizAttemptId(attempt.getId())
+                                        .quizQuestionId(question.getId())
+                                        .build());
                 }
 
-                // Build question DTOs for response
-                List<QuizQuestionResponse> questionDtos = savedQuestions.stream()
-                                .map(this::toQuestionResponse)
-                                .collect(Collectors.toList());
+                List<QuizQuestionResponse> questionDtos = new ArrayList<>();
+                for (int i = 0; i < selectedQuestions.size(); i++) {
+                        questionDtos.add(toQuestionResponse(selectedQuestions.get(i), i + 1));
+                }
 
                 return toAttemptResponse(attempt, attemptsUsed + 1, quiz.getMaxAttempts(), questionDtos, quiz);
         }
 
-        // ─── Submit attempt ──────────────────────────────────────────────────────
-
         @Transactional
         public SubmitQuizResponse submitAttempt(Long attemptId, Long studentId, SubmitQuizRequest request) {
-
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Attempt not found."));
@@ -142,22 +103,46 @@ public class QuizService {
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Quiz not found."));
 
-                // Save answers + accumulate weighted points
-                int totalPoints = 0;
+                List<Long> questionIds = quizAttemptQuestionRepository.findByQuizAttemptId(attemptId)
+                                .stream()
+                                .map(QuizAttemptQuestion::getQuizQuestionId)
+                                .collect(Collectors.toList());
+
+                if (questionIds.isEmpty()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "No questions were assigned to this attempt.");
+                }
+
+                Map<Long, QuizQuestion> assignedQuestions = quizQuestionRepository.findAllById(questionIds)
+                                .stream()
+                                .collect(Collectors.toMap(QuizQuestion::getId, q -> q));
+
+                int totalPoints = assignedQuestions.values().stream()
+                                .mapToInt(QuizQuestion::getPointsWorth)
+                                .sum();
                 int earnedPoints = 0;
+                Set<Long> answeredQuestionIds = new HashSet<>();
+                List<AnswerRequest> answers = request.getAnswers() != null ? request.getAnswers() : List.of();
 
-                for (AnswerRequest ans : request.getAnswers()) {
-                        QuizQuestion question = quizQuestionRepository.findById(ans.getQuestionId())
-                                        .orElseThrow(() -> new ResponseStatusException(
-                                                        HttpStatus.BAD_REQUEST,
-                                                        "Question not found: " + ans.getQuestionId()));
+                for (AnswerRequest ans : answers) {
+                        QuizQuestion question = assignedQuestions.get(ans.getQuestionId());
+                        if (question == null) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.BAD_REQUEST,
+                                                "Question not assigned to this attempt: " + ans.getQuestionId());
+                        }
+                        if (!answeredQuestionIds.add(ans.getQuestionId())) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.BAD_REQUEST,
+                                                "Duplicate answer for question: " + ans.getQuestionId());
+                        }
 
-                        totalPoints += question.getPointsWorth();
+                        String studentAnswer = ans.getStudentAnswer() != null ? ans.getStudentAnswer() : "";
                         boolean correct;
                         if (question.getQuestionType() == QuestionType.FILL_BLANK) {
-                                correct = question.getCorrectAnswer().equalsIgnoreCase(ans.getStudentAnswer().trim());
+                                correct = question.getCorrectAnswer().equalsIgnoreCase(studentAnswer.trim());
                         } else {
-                                correct = question.getCorrectAnswer().equals(ans.getStudentAnswer());
+                                correct = question.getCorrectAnswer().equals(studentAnswer);
                         }
                         int pts = correct ? question.getPointsWorth() : 0;
                         earnedPoints += pts;
@@ -165,13 +150,12 @@ public class QuizService {
                         quizAnswerRepository.save(QuizAnswer.builder()
                                         .quizAttemptId(attemptId)
                                         .questionId(question.getId())
-                                        .studentAnswer(ans.getStudentAnswer())
+                                        .studentAnswer(studentAnswer)
                                         .isCorrect(correct)
                                         .pointsAwarded(pts)
                                         .build());
                 }
 
-                // Calculate score
                 int score = totalPoints > 0
                                 ? (int) Math.round((earnedPoints * 100.0) / totalPoints)
                                 : 0;
@@ -182,7 +166,6 @@ public class QuizService {
                 attempt.setIsPassed(passed);
                 attempt.setSubmittedAt(LocalDateTime.now());
 
-                // Determine finish reason from request (defaults to SUBMITTED)
                 FinishReason finishReason = FinishReason.SUBMITTED;
                 if (request.getFinishReason() != null) {
                         try {
@@ -192,20 +175,6 @@ public class QuizService {
                 }
                 attempt.setFinishReason(finishReason);
                 quizAttemptRepository.save(attempt);
-
-                if (passed) {
-                        try {
-                                gamificationService.awardXp(studentId, ActionType.PASS_QUIZ);
-                        } catch (Exception e) {
-                                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
-                        }
-                } else {
-                        try {
-                                gamificationService.awardXp(studentId, ActionType.FAIL_EXAM);
-                        } catch (Exception e) {
-                                log.warn("XP award failed for student {}: {}", studentId, e.getMessage());
-                        }
-                }
 
                 int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quiz.getId());
                 boolean attemptsExhausted = attemptsUsed >= quiz.getMaxAttempts();
@@ -224,11 +193,8 @@ public class QuizService {
                                 .build();
         }
 
-        // ─── Abandon attempt ─────────────────────────────────────────────────────
-
         @Transactional
         public QuizAttemptResponse abandonAttempt(Long attemptId, Long studentId) {
-
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Attempt not found."));
@@ -251,26 +217,117 @@ public class QuizService {
                 quizAttemptRepository.save(attempt);
 
                 int attemptsUsed = quizAttemptRepository.countByStudentIdAndQuizId(studentId, quiz.getId());
-                // NOTE: No lesson unlock on abandon
                 return toAttemptResponse(attempt, attemptsUsed, quiz.getMaxAttempts(), null, quiz);
         }
 
-        // ─── My attempts ─────────────────────────────────────────────────────────
-
         @Transactional(readOnly = true)
         public List<QuizAttemptResponse> getMyAttempts(Long quizId, Long studentId) {
-
                 Quiz quiz = quizRepository.findById(quizId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Quiz not found."));
 
                 return quizAttemptRepository.findByStudentIdAndQuizId(studentId, quizId)
                                 .stream()
-                                .map(a -> toAttemptResponse(a, a.getAttemptNumber(), quiz.getMaxAttempts(), null))
+                                .map(a -> toAttemptResponse(a, a.getAttemptNumber(), quiz.getMaxAttempts(), null, quiz))
                                 .collect(Collectors.toList());
         }
 
-        // ─── Parsing helpers ─────────────────────────────────────────────────────
+        private List<QuizQuestion> ensureQuizQuestionBank(Quiz quiz, String lessonContent) {
+                List<QuizQuestion> bank = new ArrayList<>(
+                                quizQuestionRepository.findByQuizIdOrderByQuestionNumberAsc(quiz.getId()));
+                int nextQuestionNumber = bank.stream()
+                                .map(QuizQuestion::getQuestionNumber)
+                                .filter(Objects::nonNull)
+                                .max(Integer::compareTo)
+                                .orElse(0) + 1;
+
+                if (bank.size() < QUESTION_BANK_SIZE) {
+                        List<String> previousQuestions = bank.stream()
+                                        .map(QuizQuestion::getQuestionText)
+                                        .collect(Collectors.toList());
+                        List<Map<String, Object>> rawQuestions = aiServiceClient.generateQuizQuestionBank(
+                                        lessonContent, previousQuestions, QUESTION_BANK_SIZE);
+
+                        Set<String> knownQuestions = bank.stream()
+                                        .map(q -> normalizeQuestionText(q.getQuestionText()))
+                                        .collect(Collectors.toSet());
+
+                        for (Map<String, Object> rawQuestion : rawQuestions) {
+                                String questionText = getString(rawQuestion, "question");
+                                String normalizedQuestion = normalizeQuestionText(questionText);
+                                if (normalizedQuestion.isBlank() || knownQuestions.contains(normalizedQuestion)) {
+                                        continue;
+                                }
+
+                                QuizQuestion saved = quizQuestionRepository.save(
+                                                buildQuestion(quiz.getId(), nextQuestionNumber++, rawQuestion));
+                                bank.add(saved);
+                                knownQuestions.add(normalizedQuestion);
+
+                                if (bank.size() >= QUESTION_BANK_SIZE) {
+                                        break;
+                                }
+                        }
+                }
+
+                if (bank.size() < QUESTION_BANK_SIZE) {
+                        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                                        "AI service could not generate a full unique quiz question bank.");
+                }
+                return bank;
+        }
+
+        private QuizQuestion buildQuestion(Long quizId, int questionNumber, Map<String, Object> rawQuestion) {
+                QuestionType questionType = parseQuestionType(getString(rawQuestion, "questionType"));
+                DifficultyLevel difficulty = parseDifficulty(getString(rawQuestion, "difficulty"));
+                List<?> opts = rawQuestion.get("options") instanceof List ? (List<?>) rawQuestion.get("options")
+                                : List.of();
+
+                return QuizQuestion.builder()
+                                .quizId(quizId)
+                                .questionNumber(questionNumber)
+                                .questionText(getString(rawQuestion, "question"))
+                                .questionType(questionType)
+                                .correctAnswer(getString(rawQuestion, "correctAnswer"))
+                                .option1(opts.size() > 0 ? opts.get(0).toString() : "")
+                                .option2(opts.size() > 1 ? opts.get(1).toString() : "")
+                                .option3(opts.size() > 2 ? opts.get(2).toString() : "")
+                                .option4(opts.size() > 3 ? opts.get(3).toString() : null)
+                                .explanation(getString(rawQuestion, "explanation"))
+                                .difficulty(difficulty)
+                                .pointsWorth(pointsFor(difficulty))
+                                .build();
+        }
+
+        private List<QuizQuestion> selectQuestionsForAttempt(
+                        List<QuizQuestion> questionBank,
+                        List<QuizAttempt> previousAttempts) {
+
+                Set<Long> previouslyUsedQuestionIds = previousAttempts.isEmpty()
+                                ? Set.of()
+                                : quizAttemptQuestionRepository
+                                                .findByQuizAttemptIdIn(previousAttempts.stream()
+                                                                .map(QuizAttempt::getId)
+                                                                .collect(Collectors.toList()))
+                                                .stream()
+                                                .map(QuizAttemptQuestion::getQuizQuestionId)
+                                                .collect(Collectors.toSet());
+
+                List<QuizQuestion> candidates = questionBank.stream()
+                                .filter(q -> !previouslyUsedQuestionIds.contains(q.getId()))
+                                .collect(Collectors.toCollection(ArrayList::new));
+
+                if (candidates.size() < QUESTIONS_PER_ATTEMPT) {
+                        candidates = new ArrayList<>(questionBank);
+                }
+
+                Collections.shuffle(candidates);
+                return new ArrayList<>(candidates.subList(0, Math.min(QUESTIONS_PER_ATTEMPT, candidates.size())));
+        }
+
+        private String normalizeQuestionText(String questionText) {
+                return questionText == null ? "" : questionText.trim().toLowerCase(Locale.ROOT);
+        }
 
         private String getString(Map<String, Object> map, String key) {
                 Object val = map.get(key);
@@ -301,8 +358,6 @@ public class QuizService {
                 };
         }
 
-        // ─── Lesson progression ──────────────────────────────────────────────────
-
         private LessonProgressResponse triggerProgression(
                         Long studentId, Quiz quiz, boolean passed, boolean attemptsExhausted,
                         LocalDateTime attemptStartedAt) {
@@ -329,7 +384,6 @@ public class QuizService {
                         currentProgress.setTimeSpent(timeSpent);
                         lessonProgressRepository.save(currentProgress);
 
-                        // Check if all lessons in the course are now complete → fire COURSE_COMPLETE
                         List<Lesson> allLessons = lessonRepository
                                         .findByCourseIdOrderByLessonNumberAsc(lesson.getCourseId());
                         List<Long> allLessonIds = allLessons.stream().map(Lesson::getId).collect(Collectors.toList());
@@ -344,7 +398,7 @@ public class QuizService {
                                 notificationService.notify(
                                                 studentId,
                                                 NotificationCategory.COURSE_COMPLETE,
-                                                "Course Completed 🎓",
+                                                "Course Completed",
                                                 String.format("You've completed all lessons in \"%s\". You can now take the final exam!",
                                                                 courseTitle),
                                                 lesson.getCourseId(),
@@ -375,8 +429,6 @@ public class QuizService {
                                 .build();
         }
 
-        // ─── Mappers ─────────────────────────────────────────────────────────────
-
         private QuizAttemptResponse toAttemptResponse(
                         QuizAttempt a, int attemptsUsed, int maxAttempts,
                         List<QuizQuestionResponse> questions) {
@@ -404,6 +456,10 @@ public class QuizService {
         }
 
         private QuizQuestionResponse toQuestionResponse(QuizQuestion q) {
+                return toQuestionResponse(q, q.getQuestionNumber());
+        }
+
+        private QuizQuestionResponse toQuestionResponse(QuizQuestion q, int displayNumber) {
                 List<String> opts = new ArrayList<>();
                 if (q.getOption1() != null && !q.getOption1().isEmpty())
                         opts.add(q.getOption1());
@@ -416,7 +472,7 @@ public class QuizService {
 
                 return QuizQuestionResponse.builder()
                                 .id(q.getId())
-                                .questionNumber(q.getQuestionNumber())
+                                .questionNumber(displayNumber)
                                 .questionText(q.getQuestionText())
                                 .questionType(q.getQuestionType() != null ? q.getQuestionType().name() : "MCQ")
                                 .options(opts)

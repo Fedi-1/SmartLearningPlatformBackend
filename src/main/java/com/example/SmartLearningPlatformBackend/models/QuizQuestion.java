@@ -68,4 +68,8 @@ public class QuizQuestion {
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<QuizAnswer> answers = new ArrayList<>();
+
+    @OneToMany(mappedBy = "quizQuestion", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<QuizAttemptQuestion> attemptQuestions = new ArrayList<>();
 }

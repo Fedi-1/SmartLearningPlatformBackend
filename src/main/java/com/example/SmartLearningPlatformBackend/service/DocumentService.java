@@ -22,14 +22,13 @@ import com.example.SmartLearningPlatformBackend.repository.ExamAttemptRepository
 import com.example.SmartLearningPlatformBackend.repository.ExamRepository;
 import com.example.SmartLearningPlatformBackend.repository.LessonRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAnswerRepository;
+import com.example.SmartLearningPlatformBackend.repository.QuizAttemptQuestionRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizAttemptRepository;
 import com.example.SmartLearningPlatformBackend.repository.QuizRepository;
 import com.example.SmartLearningPlatformBackend.repository.StudySessionRepository;
 import com.example.SmartLearningPlatformBackend.repository.SuspiciousActivityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -54,6 +53,7 @@ public class DocumentService {
     private final LessonRepository lessonRepository;
     private final QuizRepository quizRepository;
     private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizAttemptQuestionRepository quizAttemptQuestionRepository;
     private final QuizAnswerRepository quizAnswerRepository;
     private final ExamRepository examRepository;
     private final ExamAttemptRepository examAttemptRepository;
@@ -63,10 +63,6 @@ public class DocumentService {
     private final StudySessionRepository studySessionRepository;
     private final SuspiciousActivityRepository suspiciousActivityRepository;
     private final ActivityLogService activityLogService;
-
-    @Autowired
-    @Lazy
-    private GamificationService gamificationService;
 
     // ─── Upload & Generate ──────────────────────────────────────────────────────
 
@@ -96,7 +92,7 @@ public class DocumentService {
         }
         String fileHash = HashingUtil.computeSHA256(fileBytes);
 
-        if (documentRepository.existsByStudentIdAndFileHashAndStatusNot(student.getId(), fileHash,
+        if (documentRepository.CheckDuplicateDocument(student.getId(), fileHash,
                 DocumentStatus.FAILED)) {
             throw new DuplicateDocumentException("You have already uploaded this document.");
         }
@@ -124,7 +120,7 @@ public class DocumentService {
         activityLogService.log(student.getId(), ActionType.UPLOAD_DOCUMENT, "Document", savedDocument.getId());
 
         // 5. Check for existing document with same hash (excluding current document)
-        Optional<Document> existingDocOpt = documentRepository.findFirstByFileHash(fileHash)
+        Optional<Document> existingDocOpt = documentRepository.FindByFileHash(fileHash)
                 .filter(existing -> !existing.getId().equals(savedDocument.getId()));
 
         Course course;
@@ -150,7 +146,6 @@ public class DocumentService {
 
                 // Log the course generation activity
                 activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
-                gamificationService.awardXp(student.getId(), ActionType.GENERATE_COURSE);
 
                 return UploadResponse.builder()
                         .documentId(savedDocument.getId())
@@ -190,7 +185,6 @@ public class DocumentService {
 
         // Log the course generation activity
         activityLogService.log(student.getId(), ActionType.GENERATE_COURSE, "Course", course.getId());
-        gamificationService.awardXp(student.getId(), ActionType.GENERATE_COURSE);
 
         return UploadResponse.builder()
                 .documentId(savedDocument.getId())
@@ -227,7 +221,7 @@ public class DocumentService {
     // ─── Delete ─────────────────────────────────────────────────────────────────
 
     @Transactional
-    public void softDeleteDocument(Long documentId, Long studentId) {
+    public void DeleteDocument(Long documentId, Long studentId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found."));
         if (!document.getStudentId().equals(studentId)) {
@@ -269,6 +263,7 @@ public class DocumentService {
 
                     if (!quizAttemptIds.isEmpty()) {
                         quizAnswerRepository.deleteAllByQuizAttemptIdIn(quizAttemptIds);
+                        quizAttemptQuestionRepository.deleteAllByQuizAttemptIdIn(quizAttemptIds);
                     }
                 }
             }

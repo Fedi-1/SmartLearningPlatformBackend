@@ -11,8 +11,6 @@ import com.example.SmartLearningPlatformBackend.repository.UserRepository;
 import com.example.SmartLearningPlatformBackend.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -34,10 +32,6 @@ public class AuthService {
         private final JwtService jwtService;
         private final AuthenticationManager authenticationManager;
         private final NotificationService notificationService;
-
-        @Autowired
-        @Lazy
-        private GamificationService gamificationService;
 
         // ─── Register ────────────────────────────────────────────────────────────
 
@@ -100,12 +94,7 @@ public class AuthService {
                                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
                 user.setLastLogin(LocalDateTime.now());
-                var saved = userRepository.save(user);
-                try {
-                        gamificationService.updateDailyLoginStreak(saved.getId());
-                } catch (Exception e) {
-                        log.warn("XP award failed for student {}: {}", saved.getId(), e.getMessage());
-                }
+                userRepository.save(user);
 
                 var userDetails = new UserDetailsImpl(user);
                 var token = jwtService.generateToken(userDetails);

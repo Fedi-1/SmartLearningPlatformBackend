@@ -53,9 +53,6 @@ public class NotificationService {
       case COURSE_COMPLETE, SUSPICIOUS_ACTIVITY -> {
         createAndPushInApp(userId, category, title, message, referenceId, actionUrl);
       }
-      case REMINDER -> {
-        createEmailRecord(userId, category, title, message, referenceId, actionUrl);
-      }
     }
   }
 

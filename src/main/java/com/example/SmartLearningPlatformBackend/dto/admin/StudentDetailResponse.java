@@ -17,6 +17,8 @@ public class StudentDetailResponse {
     private String firstName;
     private String lastName;
     private String email;
+    private String phoneNumber;
+    private String dateOfBirth;
     private Boolean isActive;
     private String createdAt;
     private String lastLogin;

@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -48,25 +47,6 @@ public class User {
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
-
-    @Column(name = "xp_points", nullable = false)
-    @lombok.Builder.Default
-    private Integer xpPoints = 0;
-
-    @Column(name = "current_streak", nullable = false)
-    @lombok.Builder.Default
-    private Integer currentStreak = 0;
-
-    @Column(name = "longest_streak", nullable = false)
-    @lombok.Builder.Default
-    private Integer longestStreak = 0;
-
-    @Column(name = "last_activity_date")
-    private LocalDate lastActivityDate;
-
-    @Column(name = "weekly_champion_count", nullable = false)
-    @lombok.Builder.Default
-    private Integer weeklyChampionCount = 0;
 
     @Column(name = "is_verified", nullable = false)
     @lombok.Builder.Default

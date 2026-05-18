@@ -46,7 +46,7 @@ public class DocumentController {
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
-        documentService.softDeleteDocument(id, principal.getUser().getId());
+        documentService.DeleteDocument(id, principal.getUser().getId());
         return ResponseEntity.noContent().build();
     }
 
