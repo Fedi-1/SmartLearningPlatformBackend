@@ -27,16 +27,16 @@ public class StudySessionController {
 
         Long studentId = principal.getUser().getId();
         return ResponseEntity
-                .ok(studySessionService.startSession(studentId, request.getCourseId(), request.getLessonId()));
+                .ok(studySessionService.startStudySession(studentId, request.getCourseId(), request.getLessonId()));
     }
 
-    @PostMapping("/heartbeat")
-    public ResponseEntity<StudySessionResponse> heartbeat(
+    @PostMapping("/keep-active")
+    public ResponseEntity<StudySessionResponse> keepSessionActive(
             @RequestBody StudySessionRequest request,
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
         Long studentId = principal.getUser().getId();
-        return ResponseEntity.ok(studySessionService.heartbeat(studentId, request.getSessionId()));
+        return ResponseEntity.ok(studySessionService.keepSessionActive(studentId, request.getSessionId()));
     }
 
     @PostMapping("/stop")
@@ -45,6 +45,6 @@ public class StudySessionController {
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
         Long studentId = principal.getUser().getId();
-        return ResponseEntity.ok(studySessionService.stopSession(studentId, request.getSessionId()));
+        return ResponseEntity.ok(studySessionService.stopStudySession(studentId, request.getSessionId()));
     }
 }

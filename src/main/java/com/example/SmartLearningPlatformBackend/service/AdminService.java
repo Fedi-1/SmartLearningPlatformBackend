@@ -21,13 +21,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -591,10 +596,35 @@ public class AdminService {
         // ── Private helpers ───────────────────────────────────────────────────────
 
         @Transactional(readOnly = true)
-        public ActivityLogPageResponse getActivityLogs(int page, int size, String action, Long studentId) {
+        public ActivityLogPageResponse getActivityLogs(
+                        int page,
+                        int size,
+                        String action,
+                        Long studentId,
+                        LocalDate startDate,
+                        LocalDate endDate) {
                 ActionType actionType = (action != null && !action.isBlank()) ? ActionType.valueOf(action) : null;
-                Page<ActivityLog> result = activityLogRepository.findFiltered(
-                                actionType, studentId, PageRequest.of(page, size));
+                LocalDateTime from = startDate != null ? startDate.atStartOfDay() : null;
+                LocalDateTime toExclusive = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
+                Specification<ActivityLog> spec = (root, query, cb) -> {
+                        List<Predicate> predicates = new ArrayList<>();
+                        if (actionType != null) {
+                                predicates.add(cb.equal(root.get("action"), actionType));
+                        }
+                        if (studentId != null) {
+                                predicates.add(cb.equal(root.get("userId"), studentId));
+                        }
+                        if (from != null) {
+                                predicates.add(cb.greaterThanOrEqualTo(root.get("timestamp"), from));
+                        }
+                        if (toExclusive != null) {
+                                predicates.add(cb.lessThan(root.get("timestamp"), toExclusive));
+                        }
+                        return cb.and(predicates.toArray(Predicate[]::new));
+                };
+                Page<ActivityLog> result = activityLogRepository.findAll(
+                                spec,
+                                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
                 DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
                 List<ActivityLogItem> items = result.getContent().stream().map(log -> {
                         String studentName = "";

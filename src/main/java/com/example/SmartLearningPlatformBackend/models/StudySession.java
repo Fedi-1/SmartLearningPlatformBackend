@@ -32,19 +32,19 @@ public class StudySession {
     @Column(name = "started_at", nullable = false)
     private LocalDateTime startedAt;
 
-    @Column(name = "last_heartbeat_at", nullable = false)
-    private LocalDateTime lastHeartbeatAt;
+    @Column(name = "last_activity_at", nullable = false)
+    private LocalDateTime lastActivityAt;
 
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
-    @Column(name = "accumulated_seconds", nullable = false)
+    @Column(name = "total_active_seconds", nullable = false)
     @Builder.Default
-    private Long accumulatedSeconds = 0L;
+    private Long totalActiveSeconds = 0L;
 
-    @Column(name = "is_active", nullable = false)
+    @Column(name = "active", nullable = false)
     @Builder.Default
-    private Boolean isActive = true;
+    private Boolean active = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", referencedColumnName = "id", insertable = false, updatable = false)
@@ -64,14 +64,14 @@ public class StudySession {
         if (startedAt == null) {
             startedAt = now;
         }
-        if (lastHeartbeatAt == null) {
-            lastHeartbeatAt = now;
+        if (lastActivityAt == null) {
+            lastActivityAt = now;
         }
-        if (accumulatedSeconds == null) {
-            accumulatedSeconds = 0L;
+        if (totalActiveSeconds == null) {
+            totalActiveSeconds = 0L;
         }
-        if (isActive == null) {
-            isActive = true;
+        if (active == null) {
+            active = true;
         }
     }
 }

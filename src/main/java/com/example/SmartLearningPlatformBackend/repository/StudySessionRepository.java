@@ -15,10 +15,10 @@ public interface StudySessionRepository extends JpaRepository<StudySession, Long
 
     Optional<StudySession> findByIdAndStudentId(Long id, Long studentId);
 
-    List<StudySession> findByStudentIdAndIsActiveTrue(Long studentId);
+    List<StudySession> findByStudentIdAndActiveTrue(Long studentId);
 
-    @Query("SELECT COALESCE(SUM(s.accumulatedSeconds), 0) FROM StudySession s WHERE s.studentId = :studentId")
-    Long sumAccumulatedSecondsByStudentId(@Param("studentId") Long studentId);
+    @Query("SELECT COALESCE(SUM(s.totalActiveSeconds), 0) FROM StudySession s WHERE s.studentId = :studentId")
+    Long sumTotalActiveSecondsByStudentId(@Param("studentId") Long studentId);
 
     @Modifying
     @Query("DELETE FROM StudySession s WHERE s.courseId = :courseId")

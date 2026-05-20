@@ -8,5 +8,5 @@ import lombok.Data;
 public class StudySessionResponse {
     private Long sessionId;
     private boolean active;
-    private long accumulatedSeconds;
+    private long totalActiveSeconds;
 }
