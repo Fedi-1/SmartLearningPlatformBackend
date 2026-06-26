@@ -52,6 +52,10 @@ public class Document {
     @Column(name = "file_hash")
     private String fileHash;
 
+    @Column(name = "is_deleted")
+    @Builder.Default
+    private Boolean deleted = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Student student;
@@ -59,5 +63,8 @@ public class Document {
     @PrePersist
     protected void onCreate() {
         uploadedAt = LocalDateTime.now();
+        if (deleted == null) {
+            deleted = false;
+        }
     }
 }

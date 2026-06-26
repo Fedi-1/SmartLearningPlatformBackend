@@ -182,7 +182,7 @@ public class FlashcardService {
         FlashcardRating rating = FlashcardRating.valueOf(request.getRating().toUpperCase());
         int q = qualityFor(rating);
 
-        // ── SM-2 algorithm (DO NOT MODIFY) ───────────────────────────────────
+        // ── SM-2 algorithm 
         float ef = review.getEaseFactor();
         int rep = review.getRepetitionCount();
         int cons = review.getConsecutiveCorrectReviews();

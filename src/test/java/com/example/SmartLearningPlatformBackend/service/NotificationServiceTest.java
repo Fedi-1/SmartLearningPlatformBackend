@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.SmartLearningPlatformBackend.enums.NotificationCategory;
+import com.example.SmartLearningPlatformBackend.enums.NotificationType;
+import com.example.SmartLearningPlatformBackend.dto.notification.NotificationDTO;
 import com.example.SmartLearningPlatformBackend.models.Notification;
 import com.example.SmartLearningPlatformBackend.models.User;
 import com.example.SmartLearningPlatformBackend.repository.NotificationRepository;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Optional;
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -93,5 +96,63 @@ class NotificationServiceTest {
                 "http://localhost:8069/api/certificates/uuid/download");
 
         verify(mailSender, atLeastOnce()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void markAsRead_setsReadFlagAndReadTimestamp() {
+        Notification notification = Notification.builder()
+                .id(10L)
+                .userId(1L)
+                .type(NotificationType.IN_APP)
+                .category(NotificationCategory.CERTIFICATE)
+                .title("Certificate Approved")
+                .message("Ready")
+                .isRead(false)
+                .build();
+
+        when(notificationRepository.findById(10L)).thenReturn(Optional.of(notification));
+        when(notificationRepository.save(notification)).thenReturn(notification);
+
+        NotificationDTO dto = notificationService.markAsRead(10L);
+
+        assertEquals(true, dto.getIsRead());
+        org.junit.jupiter.api.Assertions.assertNotNull(dto.getReadAt());
+    }
+
+    @Test
+    void getUnreadCount_delegatesToRepository() {
+        when(notificationRepository.countByUserIdAndIsReadFalse(1L)).thenReturn(3L);
+
+        assertEquals(3L, notificationService.getUnreadCount(1L));
+    }
+
+    @Test
+    void getUserNotifications_returnsDtosInRepositoryOrder() {
+        Notification first = Notification.builder()
+                .id(1L)
+                .userId(1L)
+                .type(NotificationType.IN_APP)
+                .category(NotificationCategory.COURSE_COMPLETE)
+                .title("First")
+                .message("Message")
+                .isRead(false)
+                .build();
+        Notification second = Notification.builder()
+                .id(2L)
+                .userId(1L)
+                .type(NotificationType.IN_APP)
+                .category(NotificationCategory.CERTIFICATE)
+                .title("Second")
+                .message("Message")
+                .isRead(false)
+                .build();
+
+        when(notificationRepository.findByUserIdOrderBySentAtDesc(1L)).thenReturn(List.of(first, second));
+
+        List<NotificationDTO> result = notificationService.getUserNotifications(1L);
+
+        assertEquals(2, result.size());
+        assertEquals("First", result.get(0).getTitle());
+        assertEquals("Second", result.get(1).getTitle());
     }
 }

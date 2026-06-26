@@ -4,5 +4,7 @@ public enum NotificationCategory {
     COURSE_COMPLETE,
     EXAM_RESULT,
     CERTIFICATE,
-    SUSPICIOUS_ACTIVITY
+    SUSPICIOUS_ACTIVITY,
+    REMINDER,
+    ALERT
 }

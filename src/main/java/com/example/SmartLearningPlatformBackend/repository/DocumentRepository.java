@@ -13,12 +13,19 @@ import java.util.Optional;
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
-    List<Document> findByStudentId(Long studentId);
+    @Query("""
+            select d
+            from Document d
+            where d.studentId = :studentId
+              and coalesce(d.deleted, false) = false
+            """)
+    List<Document> findByStudentId(@Param("studentId") Long studentId);
 
     @Query(value = """
             select *
             from documents
             where file_hash = :fileHash
+              and coalesce(is_deleted, false) = false
             order by id asc
             limit 1
             """, nativeQuery = true)
@@ -30,11 +37,21 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
             where d.studentId = :studentId
               and d.fileHash = :fileHash
               and d.status <> :status
+              and coalesce(d.deleted, false) = false
             """)
     boolean CheckDuplicateDocument(
             @Param("studentId") Long studentId,
             @Param("fileHash") String fileHash,
             @Param("status") DocumentStatus status);
 
-    Optional<Document> findByStudentIdAndFileHash(Long studentId, String fileHash);
+    @Query("""
+            select d
+            from Document d
+            where d.studentId = :studentId
+              and d.fileHash = :fileHash
+              and coalesce(d.deleted, false) = false
+            """)
+    Optional<Document> findByStudentIdAndFileHash(
+            @Param("studentId") Long studentId,
+            @Param("fileHash") String fileHash);
 }

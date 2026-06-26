@@ -91,7 +91,7 @@ public class ExamGenerationService {
             Exam exam = Exam.builder()
                     .courseId(courseId)
                     .title("Examen Final")
-                    .passingScore(10)
+                    .passingScore(70)
                     .maxAttempts(3)
                     .totalPoints(45)
                     .timeLimitMinutes(50)

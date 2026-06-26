@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.SmartLearningPlatformBackend.dto.exam.ExamAnswerRequest;
+import com.example.SmartLearningPlatformBackend.dto.exam.SubmitExamResponse;
 import com.example.SmartLearningPlatformBackend.dto.exam.SubmitExamRequest;
 import com.example.SmartLearningPlatformBackend.enums.CertificateStatus;
 import com.example.SmartLearningPlatformBackend.enums.QuestionType;
@@ -186,6 +187,56 @@ class ExamGenerationServiceTest {
 
                 examGenerationService.submitAttempt(1L, 1L, request);
 
+                verify(certificateRepository, never()).save(any(Certificate.class));
+        }
+
+        @Test
+        void submitAttempt_reusesExistingCertificateWhenPassedAgain() {
+                ExamAttempt attempt = ExamAttempt.builder()
+                                .id(1L)
+                                .studentId(1L)
+                                .examId(1L)
+                                .submittedAt(null)
+                                .build();
+                Exam exam = Exam.builder()
+                                .id(1L)
+                                .courseId(1L)
+                                .passingScore(50)
+                                .maxAttempts(3)
+                                .build();
+                Course course = Course.builder().id(1L).studentId(1L).title("Math").build();
+                ExamQuestion question = ExamQuestion.builder()
+                                .id(1L)
+                                .pointsWorth(10)
+                                .correctAnswer("A")
+                                .questionType(QuestionType.MCQ)
+                                .build();
+                Certificate existing = Certificate.builder()
+                                .id(77L)
+                                .studentId(1L)
+                                .courseId(1L)
+                                .certificateUuid("existing-uuid")
+                                .status(CertificateStatus.APPROVED)
+                                .build();
+
+                when(examAttemptRepository.findById(1L)).thenReturn(Optional.of(attempt));
+                when(examRepository.findById(1L)).thenReturn(Optional.of(exam));
+                when(examAttemptQuestionRepository.findByExamAttemptId(1L))
+                                .thenReturn(List.of(ExamAttemptQuestion.builder().examQuestionId(1L).build()));
+                when(examQuestionRepository.findAllById(List.of(1L))).thenReturn(List.of(question));
+                when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+                when(certificateRepository.findByStudentIdAndCourseId(1L, 1L)).thenReturn(Optional.of(existing));
+
+                ExamAnswerRequest ansReq = new ExamAnswerRequest();
+                ansReq.setQuestionId(1L);
+                ansReq.setStudentAnswer("A");
+                SubmitExamRequest request = new SubmitExamRequest();
+                request.setAnswers(List.of(ansReq));
+
+                SubmitExamResponse response = examGenerationService.submitAttempt(1L, 1L, request);
+
+                assertEquals("existing-uuid", response.getCertificateUuid());
+                assertEquals(77L, response.getCertificateId());
                 verify(certificateRepository, never()).save(any(Certificate.class));
         }
 }

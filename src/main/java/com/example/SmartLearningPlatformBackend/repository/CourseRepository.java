@@ -19,6 +19,8 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     List<Course> findByStudentId(Long studentId);
 
+    long countByDocumentId(Long documentId);
+
     @Query("SELECT c.category, COUNT(c) FROM Course c WHERE c.category IS NOT NULL GROUP BY c.category ORDER BY COUNT(c) DESC")
     List<Object[]> countGroupedByCategory();
 }

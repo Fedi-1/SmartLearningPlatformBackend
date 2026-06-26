@@ -50,7 +50,7 @@ public class NotificationService {
         createAndPushInApp(userId, category, title, message, referenceId, actionUrl);
         createEmailRecord(userId, category, title, message, referenceId, actionUrl);
       }
-      case COURSE_COMPLETE, SUSPICIOUS_ACTIVITY -> {
+      case COURSE_COMPLETE, SUSPICIOUS_ACTIVITY, REMINDER, ALERT -> {
         createAndPushInApp(userId, category, title, message, referenceId, actionUrl);
       }
     }

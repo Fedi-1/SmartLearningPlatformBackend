@@ -28,6 +28,9 @@ public class DocumentController {
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
+        if (principal == null || principal.getUser() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Student student = (Student) principal.getUser();
         UploadResponse response = documentService.uploadAndGenerate(file, student);
         return ResponseEntity.ok(response);
@@ -37,6 +40,9 @@ public class DocumentController {
     public ResponseEntity<List<DocumentResponse>> getMyDocuments(
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
+        if (principal == null || principal.getUser() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         List<DocumentResponse> docs = documentService.getStudentDocuments(principal.getUser().getId());
         return ResponseEntity.ok(docs);
     }
@@ -46,6 +52,9 @@ public class DocumentController {
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetailsImpl principal) {
 
+        if (principal == null || principal.getUser() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         documentService.DeleteDocument(id, principal.getUser().getId());
         return ResponseEntity.noContent().build();
     }

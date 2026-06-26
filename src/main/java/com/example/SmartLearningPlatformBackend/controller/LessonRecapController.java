@@ -101,21 +101,59 @@ public class LessonRecapController {
     }
 
     private File resolveFile(String rawPath, String requiredSegment) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+
         Path raw = Paths.get(rawPath);
+        Path uploadsRoot = aiServiceUploadsDir != null && !aiServiceUploadsDir.isBlank()
+                ? Paths.get(aiServiceUploadsDir).normalize().toAbsolutePath()
+                : null;
         Path resolved;
+
         if (raw.isAbsolute()) {
-            resolved = raw.normalize();
-        } else if (aiServiceUploadsDir != null && !aiServiceUploadsDir.isBlank()) {
-            resolved = Paths.get(aiServiceUploadsDir).resolve(raw).normalize();
+            resolved = translateSharedUploadPath(raw.normalize(), uploadsRoot);
+        } else if (uploadsRoot != null) {
+            resolved = uploadsRoot.resolve(raw).normalize();
         } else {
             resolved = raw.normalize().toAbsolutePath();
         }
-        // Normalise to forward slashes for cross-platform segment check
+
+        if (uploadsRoot != null && !resolved.startsWith(uploadsRoot)) {
+            return null;
+        }
+
         String s = resolved.toString().replace('\\', '/');
-        // Strip the leading slash from the required segment when comparing
         String seg = requiredSegment.replace('\\', '/');
         if (!s.contains(seg))
             return null;
         return resolved.toFile();
+    }
+
+    private Path translateSharedUploadPath(Path rawAbsolutePath, Path uploadsRoot) {
+        if (uploadsRoot == null) {
+            return rawAbsolutePath;
+        }
+
+        String raw = rawAbsolutePath.toString().replace('\\', '/');
+        String root = uploadsRoot.toString().replace('\\', '/');
+        if (raw.startsWith(root + "/") || raw.equals(root)) {
+            return rawAbsolutePath;
+        }
+
+        String[] knownContainerRoots = { "/app/uploads/", "/app/ai-uploads/" };
+        for (String containerRoot : knownContainerRoots) {
+            if (raw.startsWith(containerRoot)) {
+                return uploadsRoot.resolve(raw.substring(containerRoot.length())).normalize();
+            }
+        }
+
+        String recapSegment = "/recap-videos/";
+        int recapIndex = raw.indexOf(recapSegment);
+        if (recapIndex >= 0) {
+            return uploadsRoot.resolve(raw.substring(recapIndex + 1)).normalize();
+        }
+
+        return rawAbsolutePath;
     }
 }

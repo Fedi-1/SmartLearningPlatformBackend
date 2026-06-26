@@ -280,7 +280,14 @@ public class DocumentService {
             courseRepository.delete(course);
         });
 
-        documentRepository.delete(document);
+        if (courseRepository.countByDocumentId(documentId) == 0) {
+            documentRepository.delete(document);
+        } else {
+            document.setDeleted(true);
+            document.setFileContent(null);
+            documentRepository.save(document);
+            log.info("Soft-deleted document {} because other courses still reference it", documentId);
+        }
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────

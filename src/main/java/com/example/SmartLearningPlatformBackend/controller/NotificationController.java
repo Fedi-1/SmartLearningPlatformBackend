@@ -5,6 +5,7 @@ import com.example.SmartLearningPlatformBackend.models.UserDetailsImpl;
 import com.example.SmartLearningPlatformBackend.service.NotificationService;
 import com.example.SmartLearningPlatformBackend.service.SseService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,12 +25,18 @@ public class NotificationController {
 
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(@AuthenticationPrincipal UserDetailsImpl principal) {
+        if (principal == null || principal.getUser() == null) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
         return sseService.subscribe(principal.getUser().getId());
     }
 
     @GetMapping
     public ResponseEntity<List<NotificationDTO>> getUserNotifications(
             @AuthenticationPrincipal UserDetailsImpl principal) {
+        if (principal == null || principal.getUser() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         return ResponseEntity.ok(
                 notificationService.getUserNotifications(principal.getUser().getId()));
     }
@@ -37,6 +44,9 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> getUnreadCount(
             @AuthenticationPrincipal UserDetailsImpl principal) {
+        if (principal == null || principal.getUser() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         long count = notificationService.getUnreadCount(principal.getUser().getId());
         return ResponseEntity.ok(Map.of("count", count));
     }
